@@ -21,6 +21,7 @@ package io.ballerina.stdlib.ftp.testutils.mockServerUtils;
 import org.apache.ftpserver.FtpServer;
 import org.apache.ftpserver.FtpServerFactory;
 import org.apache.ftpserver.ftplet.Authority;
+import org.apache.ftpserver.ftplet.FtpException;
 import org.apache.ftpserver.ftplet.UserManager;
 import org.apache.ftpserver.listener.ListenerFactory;
 import org.apache.ftpserver.ssl.SslConfigurationFactory;
@@ -52,6 +53,10 @@ public final class MockFtpServer {
 
     private static final String username = "wso2";
     private static final String password = "wso2123";
+
+    public static final int FTPS_EXPLICIT_PORT = 21214;
+    public static final int FTPS_IMPLICIT_PORT = 21217;
+    public static final int FTPS_MISMATCHED_PORT = 21220;
 
     private static final Logger logger = LoggerFactory.getLogger("ballerina");
     private static FakeFtpServer anonFtpServer;
@@ -175,23 +180,44 @@ public final class MockFtpServer {
         return null;
     }
 
-    public static void startFtpsServer(String resources, boolean implicitMode, int port) throws Exception {
+    public static void startFtpsServerExplicit(String resources) throws IOException {
+        ftpsServerExplicit = buildAndStartFtpsServer(resources, "keystore.jks", false, FTPS_EXPLICIT_PORT);
+        logger.info("Started Apache FTPS server in EXPLICIT mode on port {}", FTPS_EXPLICIT_PORT);
+    }
+
+    public static void startFtpsServerImplicit(String resources) throws IOException {
+        ftpsServerImplicit = buildAndStartFtpsServer(resources, "keystore.jks", true, FTPS_IMPLICIT_PORT);
+        logger.info("Started Apache FTPS server in IMPLICIT mode on port {}", FTPS_IMPLICIT_PORT);
+    }
+
+    /**
+     * Starts an Explicit FTPS server whose certificate CN/SAN does NOT match
+     * localhost/127.0.0.1. Used to verify hostname verification behaviour on the
+     * client side. The server presents a cert for "other.example.com".
+     */
+    public static void startFtpsServerMismatched(String resources, int port) throws IOException {
+        ftpsServerMismatched = buildAndStartFtpsServer(resources, "mismatched-keystore.jks", false, port);
+        logger.info("Started Apache FTPS server with MISMATCHED cert (CN=other.example.com) on port {}", port);
+    }
+
+    private static FtpServer buildAndStartFtpsServer(String resources, String keystoreFile, boolean implicitMode,
+                                                     int port) throws IOException {
         final FtpServerFactory serverFactory = new FtpServerFactory();
         final ListenerFactory factory = new ListenerFactory();
-        
+
         SslConfigurationFactory ssl = new SslConfigurationFactory();
-        ssl.setKeystoreFile(new File(resources + "/keystore.jks"));
+        ssl.setKeystoreFile(new File(resources + "/" + keystoreFile));
         ssl.setKeystorePassword("changeit");
         factory.setSslConfiguration(ssl.createSslConfiguration());
         factory.setImplicitSsl(implicitMode);
 
         final PropertiesUserManagerFactory userManagerFactory = new PropertiesUserManagerFactory();
         final UserManager userManager = userManagerFactory.createUserManager();
-        
+
         BaseUser user = new BaseUser();
         user.setName(username);
         user.setPassword(password);
-        
+
         File dataDirectory = new File(resources + "/datafiles");
         if (!dataDirectory.exists()) {
             dataDirectory.mkdirs();
@@ -199,18 +225,26 @@ public final class MockFtpServer {
         // Ensure folders for listener tests exist to prevent "Not a folder" errors
         new File(dataDirectory, "ftps-client").mkdirs();
         new File(dataDirectory, "ftps-listener").mkdirs();
-        
+
         user.setHomeDirectory(dataDirectory.getAbsolutePath());
         List<Authority> authorities = new ArrayList<>();
         authorities.add(new WritePermission());
         user.setAuthorities(authorities);
-        userManager.save(user);
+        try {
+            userManager.save(user);
+        } catch (FtpException e) {
+            throw new IOException("Failed to save user for FTPS server", e);
+        }
         serverFactory.setUserManager(userManager);
         factory.setPort(port);
         serverFactory.addListener("default", factory.createListener());
-        
+
         FtpServer server = serverFactory.createServer();
-        server.start();
+        try {
+            server.start();
+        } catch (FtpException e) {
+            throw new IOException("Failed to start FTPS server on port " + port, e);
+        }
 
         int i = 0;
         while ((server.isStopped() || server.isSuspended()) && i < 10) {
@@ -219,88 +253,14 @@ public final class MockFtpServer {
                 i++;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new Exception("Error in starting Apache FTPS server");
-            }
-        }
-        
-        if (i < 10) {
-            if (implicitMode) {
-                ftpsServerImplicit = server;
-                logger.info("Started Apache FTPS server in IMPLICIT mode on port {}", port);
-            } else {
-                ftpsServerExplicit = server;
-                logger.info("Started Apache FTPS server in EXPLICIT mode on port {}", port);
-            }
-        } else {
-            throw new Exception("Could not start Apache FTPS server on port " + port);
-        }
-    }
-
-    public static void startFtpsServerExplicit(String resources) throws Exception {
-        startFtpsServer(resources, false, 21214);
-    }
-
-    public static void startFtpsServerImplicit(String resources) throws Exception {
-        startFtpsServer(resources, true, 21217);
-    }
-
-    /**
-     * Starts an Explicit FTPS server using a keystore whose certificate CN/SAN does NOT match
-     * localhost/127.0.0.1. Used to empirically verify hostname verification behaviour on the
-     * client side. The server presents a cert for "other.example.com".
-     */
-    public static void startFtpsServerMismatched(String resources, int port) throws Exception {
-        final FtpServerFactory serverFactory = new FtpServerFactory();
-        final ListenerFactory factory = new ListenerFactory();
-
-        SslConfigurationFactory ssl = new SslConfigurationFactory();
-        ssl.setKeystoreFile(new File(resources + "/mismatched-keystore.jks"));
-        ssl.setKeystorePassword("changeit");
-        factory.setSslConfiguration(ssl.createSslConfiguration());
-        factory.setImplicitSsl(false);
-
-        final PropertiesUserManagerFactory userManagerFactory = new PropertiesUserManagerFactory();
-        final UserManager userManager = userManagerFactory.createUserManager();
-
-        BaseUser user = new BaseUser();
-        user.setName(username);
-        user.setPassword(password);
-
-        File dataDirectory = new File(resources + "/datafiles");
-        if (!dataDirectory.exists()) {
-            dataDirectory.mkdirs();
-        }
-        new File(dataDirectory, "ftps-client").mkdirs();
-
-        user.setHomeDirectory(dataDirectory.getAbsolutePath());
-        List<Authority> authorities = new ArrayList<>();
-        authorities.add(new WritePermission());
-        user.setAuthorities(authorities);
-        userManager.save(user);
-        serverFactory.setUserManager(userManager);
-        factory.setPort(port);
-        serverFactory.addListener("default", factory.createListener());
-
-        FtpServer server = serverFactory.createServer();
-        server.start();
-
-        int i = 0;
-        while ((server.isStopped() || server.isSuspended()) && i < 10) {
-            try {
-                TimeUnit.MILLISECONDS.sleep(500);
-                i++;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new Exception("Error in starting Apache FTPS (mismatched) server");
+                throw new IOException("Interrupted while waiting for FTPS server on port " + port, e);
             }
         }
 
-        if (i < 10) {
-            ftpsServerMismatched = server;
-            logger.info("Started Apache FTPS server with MISMATCHED cert (CN=other.example.com) on port {}", port);
-        } else {
-            throw new Exception("Could not start Apache FTPS (mismatched) server on port " + port);
+        if (i >= 10) {
+            throw new IOException("Could not start Apache FTPS server on port " + port);
         }
+        return server;
     }
 
     public static void stopFtpsServerMismatched() {
@@ -348,6 +308,7 @@ public final class MockFtpServer {
     public static void stopFtpsServer() {
         stopFtpsServerExplicit();
         stopFtpsServerImplicit();
+        stopFtpsServerMismatched();
     }
 
     public static void stopFtpsServerExplicit() {

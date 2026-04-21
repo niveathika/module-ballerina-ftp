@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -83,7 +84,10 @@ public class RemoteFileSystemConsumer {
         listeningDirURI = (uri != null) ? uri.toString() : null;
         try {
             this.fileSystemManager = VFS.getManager();
-            HostnameVerifyingFtpsFileProvider.ensureRegistered(this.fileSystemManager);
+            if (listeningDirURI != null
+                    && listeningDirURI.toLowerCase(Locale.ROOT).startsWith(FtpConstants.SCHEME_FTPS)) {
+                HostnameVerifyingFtpsFileProvider.ensureRegistered(this.fileSystemManager);
+            }
             this.fileSystemOptions = FileTransportUtils.attachFileSystemOptions(fileProperties);
             listeningDir = fileSystemManager.resolveFile(listeningDirURI, fileSystemOptions);
             FileType fileType = listeningDir.getType();

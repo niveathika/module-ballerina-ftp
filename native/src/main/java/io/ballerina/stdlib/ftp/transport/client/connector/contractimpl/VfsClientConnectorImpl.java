@@ -48,6 +48,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static io.ballerina.stdlib.ftp.transport.server.util.FileTransportUtils.maskUrlPassword;
@@ -73,9 +74,11 @@ public class VfsClientConnectorImpl implements VfsClientConnector {
         String fileURI = null;
         try {
             fsManager = VFS.getManager();
-            HostnameVerifyingFtpsFileProvider.ensureRegistered(fsManager);
             Object uri = connectorConfig.get(FtpConstants.URI);
             fileURI = (uri != null) ? uri.toString() : null;
+            if (fileURI != null && fileURI.toLowerCase(Locale.ROOT).startsWith(FtpConstants.SCHEME_FTPS)) {
+                HostnameVerifyingFtpsFileProvider.ensureRegistered(fsManager);
+            }
             path = fsManager.resolveFile(fileURI, opts);
         } catch (FileSystemException e) {
             String safeUri = maskUrlPassword(fileURI);

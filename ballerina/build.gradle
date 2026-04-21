@@ -225,7 +225,7 @@ task waitForFtpsTestServer() {
             sleep(pollIntervalMs)
         }
 
-        throw new GradleException("FTPS mock server was not ready on ${host}:${explicitPort} after waiting ${maxWaitMs / 1000} seconds")
+        throw new GradleException("FTPS mock servers were not ready on ${host} (explicit=${explicitPort}, implicit=${implicitPort}, mismatched=${mismatchedPort}) after waiting ${maxWaitMs / 1000} seconds")
     }
 }
 

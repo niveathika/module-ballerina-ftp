@@ -19,6 +19,7 @@
 package io.ballerina.stdlib.ftp.transport.server.util;
 
 import io.ballerina.stdlib.ftp.exception.RemoteFileSystemConnectorException;
+import io.ballerina.stdlib.ftp.transport.ftps.HostnameVerifyingFtpsConfigHelper;
 import io.ballerina.stdlib.ftp.util.ExcludeCoverageFromGeneratedReport;
 import io.ballerina.stdlib.ftp.util.FtpConstants;
 import io.ballerina.stdlib.ftp.util.FtpUtil;
@@ -199,7 +200,11 @@ public final class FileTransportUtils {
         } else {
             ftpsConfigBuilder.setFtpsMode(opts, FtpsMode.EXPLICIT);
         }
-        
+
+        Object verifyHostnameObj = options.get(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME);
+        boolean verifyHostname = verifyHostnameObj == null || Boolean.parseBoolean(verifyHostnameObj.toString());
+        HostnameVerifyingFtpsConfigHelper.getInstance().setVerifyHostname(opts, verifyHostname);
+
         configureFtpsSecurityOptions(ftpsConfigBuilder, opts, options);
         configureFtpsSslCertificates(ftpsConfigBuilder, opts, options);
     }
@@ -243,27 +248,28 @@ public final class FileTransportUtils {
                 }
             }
 
-            // 2. Configure TrustStore (Server Validation)
+            // 2. Configure TrustStore (Server Validation).
+            //    Always install a TrustManager on the builder — user's truststore if
+            //    supplied, otherwise the JDK default (cacerts). Without this,
+            //    FtpsFileSystemConfigBuilder.getTrustManager() falls back to commons-net's
+            //    TrustManagerUtils.getValidateServerCertificateTrustManager(), which only
+            //    checks certificate validity (expiration) and skips trust chain validation.
             Object truststorePathObj = options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH);
+            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             if (truststorePathObj != null) {
                 String trustStorePath = (String) truststorePathObj;
                 Object passwordObj = options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD);
                 String password = (passwordObj != null) ? passwordObj.toString() : null;
-
-                // Load TrustStore here
                 KeyStore trustStore = FtpUtil.loadKeyStore(trustStorePath, password);
-
-                // Init TrustManagerFactory
-                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
                 tmf.init(trustStore);
-                TrustManager[] trustManagers = tmf.getTrustManagers();
-
-                if (trustManagers != null && trustManagers.length > 0) {
-                    ftpsConfigBuilder.setTrustManager(opts, trustManagers[0]);
-                } else {
-                    log.warn("FTPS configured with TrustStore path {} but no TrustManagers were found.",
-                            trustStorePath);
-                }
+            } else {
+                tmf.init((KeyStore) null);
+            }
+            TrustManager[] trustManagers = tmf.getTrustManagers();
+            if (trustManagers != null && trustManagers.length > 0) {
+                ftpsConfigBuilder.setTrustManager(opts, trustManagers[0]);
+            } else {
+                log.warn("FTPS trust manager initialization returned no managers.");
             }
         } catch (Exception e) {
             // Wrap FtpUtil.loadKeyStore exceptions (BallerinaFtpException) and others

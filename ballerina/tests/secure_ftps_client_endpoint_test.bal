@@ -540,3 +540,71 @@ public function testFtpsLargeFileStreamReuse() returns error? {
     check (<Client>ftpsExplicitClientEp)->delete(path1);
     check (<Client>ftpsExplicitClientEp)->delete(path2);
 }
+
+// Hostname verification regression test.
+const MISMATCHED_KEYSTORE_PATH = "tests/resources/mismatched-keystore.jks";
+
+@test:Config {}
+public function testFtpsHostnameVerificationMismatch() returns error? {
+    ClientConfiguration mismatchedConfig = {
+        protocol: FTPS,
+        host: "127.0.0.1",
+        port: 21220,
+        connectTimeout: 30.0,
+        auth: {
+            credentials: {username: "wso2", password: "wso2123"},
+            secureSocket: {
+                cert: {
+                    path: MISMATCHED_KEYSTORE_PATH,
+                    password: KEYSTORE_PASSWORD
+                },
+                mode: EXPLICIT
+            }
+        }
+    };
+
+    Client|Error ftpsClientEp = new (mismatchedConfig);
+    if ftpsClientEp is Error {
+        // Expected path: construction fails due to hostname mismatch during TLS handshake.
+        return;
+    }
+    boolean|Error result = ftpsClientEp->isDirectory("/");
+    if result is Error {
+        // Expected path: first data/control exchange fails hostname verification.
+        return;
+    }
+    test:assertFail(string `Hostname verification not enforced: cert for other.example.com was accepted for host 127.0.0.1 (isDirectory returned ${result}). See wso2/product-integrator#829.`);
+}
+
+@test:Config {}
+public function testFtpsHostnameVerificationMatchingCert() returns error? {
+    // Happy path: matching-CN server on 21214 must still work with the fix.
+    boolean isDir = check (<Client>ftpsExplicitClientEp)->isDirectory("/");
+    test:assertTrue(isDir, "isDirectory('/') should succeed against FTPS server with matching cert.");
+}
+
+@test:Config {}
+public function testFtpsHostnameVerificationDisabled() returns error? {
+    // Opt-out path: same mismatched server, but verifyHostname: false must skip the check.
+    ClientConfiguration optOutConfig = {
+        protocol: FTPS,
+        host: "127.0.0.1",
+        port: 21220,
+        connectTimeout: 30.0,
+        auth: {
+            credentials: {username: "wso2", password: "wso2123"},
+            secureSocket: {
+                cert: {
+                    path: MISMATCHED_KEYSTORE_PATH,
+                    password: KEYSTORE_PASSWORD
+                },
+                mode: EXPLICIT,
+                verifyHostname: false
+            }
+        }
+    };
+
+    Client ftpsClientEp = check new (optOutConfig);
+    boolean isDir = check ftpsClientEp->isDirectory("/");
+    test:assertTrue(isDir, "verifyHostname:false should allow connection to mismatched-cert server.");
+}

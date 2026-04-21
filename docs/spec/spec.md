@@ -152,6 +152,35 @@ ftp:Client sftpClient = check new ({
 });
 ```
 
+#### 3.1.3 Secure FTPS Client
+
+A secure FTPS client is initialized by specifying the `FTPS` protocol. Authentication details are optional — when `secureSocket` is omitted the client uses the JDK's default system truststore (`cacerts`) for chain validation and verifies the server hostname against the certificate. The optional `secureSocket` record controls SSL/TLS behaviour:
+
+- `key` — Keystore for client-side (mTLS) authentication.
+- `cert` — Truststore for validating the server certificate chain. When omitted, the JDK's default system truststore is used.
+- `mode` — `EXPLICIT` (default; start plain, upgrade via `AUTH TLS`) or `IMPLICIT` (TLS from connect).
+- `dataChannelProtection` — `PRIVATE` (default), `SAFE`, `CONFIDENTIAL`, or `CLEAR`.
+- `verifyHostname` — Whether to verify that the server certificate's CN/SAN matches the host being connected to. Defaults to `true`. Set to `false` only for development or testing with self-signed certificates whose identity does not match the host.
+
+Connection attempts fail at the TLS handshake with an `ftp:Error` when the server certificate is not trusted by the configured truststore (or the JDK default), or when `verifyHostname` is `true` and the certificate identity does not match the connect host.
+
+###### Example: FTPS Client
+
+```ballerina
+ftp:Client ftpsClient = check new ({
+    protocol: ftp:FTPS,
+    host: "ftps.example.com",
+    port: 21,
+    auth: {
+        credentials: {username: "user", password: "pass"},
+        secureSocket: {
+            cert: {path: "/path/to/truststore.p12", password: "changeit"},
+            mode: ftp:EXPLICIT
+        }
+    }
+});
+```
+
 ### 3.2 Writing Files
 
 #### 3.2.1 Write Operations

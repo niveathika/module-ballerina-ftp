@@ -164,6 +164,7 @@ task waitForFtpsTestServer() {
         def host = "127.0.0.1"
         def explicitPort = 21214
         def implicitPort = 21217
+        def mismatchedPort = 21220
 
         def connectTimeoutMs = 500
         def readTimeoutMs = 500
@@ -218,7 +219,7 @@ task waitForFtpsTestServer() {
 
         long start = System.currentTimeMillis()
         while (System.currentTimeMillis() - start < maxWaitMs) {
-            if (isExplicitFtpsReady() && isTcpPortOpen(implicitPort)) {
+            if (isExplicitFtpsReady() && isTcpPortOpen(implicitPort) && isTcpPortOpen(mismatchedPort)) {
                 return
             }
             sleep(pollIntervalMs)

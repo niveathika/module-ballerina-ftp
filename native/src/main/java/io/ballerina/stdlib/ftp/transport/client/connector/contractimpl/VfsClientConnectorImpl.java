@@ -26,6 +26,7 @@ import io.ballerina.stdlib.ftp.exception.FtpServiceUnavailableException;
 import io.ballerina.stdlib.ftp.exception.RemoteFileSystemConnectorException;
 import io.ballerina.stdlib.ftp.transport.client.connector.contract.FtpAction;
 import io.ballerina.stdlib.ftp.transport.client.connector.contract.VfsClientConnector;
+import io.ballerina.stdlib.ftp.transport.ftps.HostnameVerifyingFtpsFileProvider;
 import io.ballerina.stdlib.ftp.transport.listener.RemoteFileSystemListener;
 import io.ballerina.stdlib.ftp.transport.message.FileInfo;
 import io.ballerina.stdlib.ftp.transport.message.RemoteFileSystemMessage;
@@ -72,6 +73,7 @@ public class VfsClientConnectorImpl implements VfsClientConnector {
         String fileURI = null;
         try {
             fsManager = VFS.getManager();
+            HostnameVerifyingFtpsFileProvider.ensureRegistered(fsManager);
             Object uri = connectorConfig.get(FtpConstants.URI);
             fileURI = (uri != null) ? uri.toString() : null;
             path = fsManager.resolveFile(fileURI, opts);

@@ -681,12 +681,16 @@ public class FtpListenerHelper {
         }
     }
 
-    private static void configureServerFtpsSecureSocket(BMap secureSocket, Map<String, Object> params) 
+    private static void configureServerFtpsSecureSocket(BMap secureSocket, Map<String, Object> params)
             throws BallerinaFtpException {
         FtpUtil.configureFtpsMode(secureSocket, params);
         FtpUtil.configureFtpsDataChannelProtection(secureSocket, params);
-        
-        String keyStorePath = FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY, 
+
+        boolean verifyHostname = secureSocket.getBooleanValue(
+                StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME));
+        params.put(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME, verifyHostname);
+
+        String keyStorePath = FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY,
                 FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PATH, 
                 FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PASSWORD, 
                 params);

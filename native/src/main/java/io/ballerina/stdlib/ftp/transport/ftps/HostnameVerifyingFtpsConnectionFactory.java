@@ -52,8 +52,8 @@ final class HostnameVerifyingFtpsConnectionFactory
     protected FTPSClient createClient(FileSystemOptions fileSystemOptions) throws FileSystemException {
         FTPSClient client = new FTPSClient(builder.getFtpsMode(fileSystemOptions) == FtpsMode.IMPLICIT);
 
-        boolean verifyHostname = HostnameVerifyingFtpsConfigHelper.getInstance().getVerifyHostname(fileSystemOptions);
-        client.setEndpointCheckingEnabled(verifyHostname);
+        boolean verifyHostName = HostnameVerifyingFtpsConfigHelper.getInstance().getVerifyHostName(fileSystemOptions);
+        client.setEndpointCheckingEnabled(verifyHostName);
 
         TrustManager trustManager = builder.getTrustManager(fileSystemOptions);
         if (trustManager != null) {

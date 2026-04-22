@@ -686,9 +686,9 @@ public class FtpListenerHelper {
         FtpUtil.configureFtpsMode(secureSocket, params);
         FtpUtil.configureFtpsDataChannelProtection(secureSocket, params);
 
-        boolean verifyHostname = secureSocket.getBooleanValue(
-                StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME));
-        params.put(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME, verifyHostname);
+        boolean verifyHostName = secureSocket.getBooleanValue(
+                StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOST_NAME));
+        params.put(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOST_NAME, verifyHostName);
 
         String keyStorePath = FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY,
                 FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PATH, 

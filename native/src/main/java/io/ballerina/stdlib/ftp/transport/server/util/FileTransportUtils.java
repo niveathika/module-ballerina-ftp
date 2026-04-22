@@ -201,9 +201,9 @@ public final class FileTransportUtils {
             ftpsConfigBuilder.setFtpsMode(opts, FtpsMode.EXPLICIT);
         }
 
-        Object verifyHostnameObj = options.get(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME);
-        boolean verifyHostname = verifyHostnameObj == null || Boolean.parseBoolean(verifyHostnameObj.toString());
-        HostnameVerifyingFtpsConfigHelper.getInstance().setVerifyHostname(opts, verifyHostname);
+        Object verifyHostNameObj = options.get(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOST_NAME);
+        boolean verifyHostName = verifyHostNameObj == null || Boolean.parseBoolean(verifyHostNameObj.toString());
+        HostnameVerifyingFtpsConfigHelper.getInstance().setVerifyHostName(opts, verifyHostName);
 
         configureFtpsSecurityOptions(ftpsConfigBuilder, opts, options);
         configureFtpsSslCertificates(ftpsConfigBuilder, opts, options);

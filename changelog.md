@@ -9,12 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - [Add automatic retry support with exponential backoff for FTP listener](https://github.com/ballerina-platform/ballerina-library/issues/8585)
 - Updated minimum distribution version to 2201.13.2
-- Added `verifyHostname` field (default `true`) to `ftp:SecureSocket` to verify FTPS server certificate CN/SAN against the connect host.
+- Added `verifyHostName` field (default `true`) to `ftp:SecureSocket` to verify FTPS server certificate CN/SAN against the connect host.
 
 ### Fixed
 
 - [Fix SFTP listener blocking on shutdown due to exec channel probe on restricted servers](https://github.com/ballerina-platform/ballerina-library/issues/8708)
-- **Security:** Harden FTPS default TLS validation — hostname verification is now enforced by default (opt-out via `verifyHostname: false`) and the default trust chain now uses the JDK system truststore (`cacerts`) instead of commons-net's permissive validity-only default. Previously, FTPS connections silently accepted any in-date certificate, whether self-signed or with a mismatched CN/SAN. See [wso2/product-integrator#829](https://github.com/wso2/product-integrator/issues/829). **Breaking:** users who relied on the permissive default must now either configure `secureSocket.cert` with a truststore that trusts the server's cert, or (for dev/test only) disable verification via `verifyHostname: false`.
+- **Security:** Harden FTPS default TLS validation — hostname verification is now enforced by default (opt-out via `verifyHostName: false`) and the default trust chain now uses the JDK system truststore (`cacerts`) instead of commons-net's permissive validity-only default. Previously, FTPS connections silently accepted any in-date certificate, whether self-signed or with a mismatched CN/SAN. See [wso2/product-integrator#829](https://github.com/wso2/product-integrator/issues/829). **Breaking:** users who relied on the permissive default must now either configure `secureSocket.cert` with a truststore that trusts the server's cert, or (for dev/test only) disable verification via `verifyHostName: false`.
 
 ### Changed
 

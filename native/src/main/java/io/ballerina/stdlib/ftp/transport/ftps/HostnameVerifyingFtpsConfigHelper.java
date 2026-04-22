@@ -24,7 +24,7 @@ import org.apache.commons.vfs2.FileSystemOptions;
 import org.apache.commons.vfs2.provider.ftps.FtpsFileSystem;
 
 /**
- * Stashes the {@code verifyHostname} flag on a {@link FileSystemOptions} so our
+ * Stashes the {@code verifyHostName} flag on a {@link FileSystemOptions} so our
  * custom connection factory can read it when constructing the {@code FTPSClient}.
  * Uses the standard VFS {@link FileSystemConfigBuilder} parameter mechanism so the
  * value is namespaced under this class and won't collide with vfs2's own keys.
@@ -32,7 +32,7 @@ import org.apache.commons.vfs2.provider.ftps.FtpsFileSystem;
 public final class HostnameVerifyingFtpsConfigHelper extends FileSystemConfigBuilder {
 
     private static final HostnameVerifyingFtpsConfigHelper INSTANCE = new HostnameVerifyingFtpsConfigHelper();
-    private static final String VERIFY_HOSTNAME = "verifyHostname";
+    private static final String VERIFY_HOST_NAME = "verifyHostName";
 
     private HostnameVerifyingFtpsConfigHelper() {
     }
@@ -41,12 +41,12 @@ public final class HostnameVerifyingFtpsConfigHelper extends FileSystemConfigBui
         return INSTANCE;
     }
 
-    public void setVerifyHostname(FileSystemOptions opts, boolean value) {
-        setParam(opts, VERIFY_HOSTNAME, value);
+    public void setVerifyHostName(FileSystemOptions opts, boolean value) {
+        setParam(opts, VERIFY_HOST_NAME, value);
     }
 
-    public boolean getVerifyHostname(FileSystemOptions opts) {
-        return getBoolean(opts, VERIFY_HOSTNAME, true);
+    public boolean getVerifyHostName(FileSystemOptions opts) {
+        return getBoolean(opts, VERIFY_HOST_NAME, true);
     }
 
     @Override

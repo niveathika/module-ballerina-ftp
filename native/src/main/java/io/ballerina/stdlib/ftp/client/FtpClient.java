@@ -386,9 +386,9 @@ public class FtpClient {
         FtpUtil.configureFtpsMode(secureSocket, ftpConfig);
         FtpUtil.configureFtpsDataChannelProtection(secureSocket, ftpConfig);
 
-        boolean verifyHostname = secureSocket.getBooleanValue(
-                StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME));
-        ftpConfig.put(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME, verifyHostname);
+        boolean verifyHostName = secureSocket.getBooleanValue(
+                StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOST_NAME));
+        ftpConfig.put(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOST_NAME, verifyHostName);
 
         FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY,
                 FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PATH,

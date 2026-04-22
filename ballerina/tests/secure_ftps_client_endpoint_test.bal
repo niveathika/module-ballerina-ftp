@@ -585,7 +585,7 @@ public function testFtpsHostnameVerificationMatchingCert() returns error? {
 
 @test:Config {}
 public function testFtpsHostnameVerificationDisabled() returns error? {
-    // Opt-out path: same mismatched server, but verifyHostname: false must skip the check.
+    // Opt-out path: same mismatched server, but verifyHostName: false must skip the check.
     ClientConfiguration optOutConfig = {
         protocol: FTPS,
         host: "127.0.0.1",
@@ -599,12 +599,12 @@ public function testFtpsHostnameVerificationDisabled() returns error? {
                     password: KEYSTORE_PASSWORD
                 },
                 mode: EXPLICIT,
-                verifyHostname: false
+                verifyHostName: false
             }
         }
     };
 
     Client ftpsClientEp = check new (optOutConfig);
     boolean isDir = check ftpsClientEp->isDirectory("/");
-    test:assertTrue(isDir, "verifyHostname:false should allow connection to mismatched-cert server.");
+    test:assertTrue(isDir, "verifyHostName:false should allow connection to mismatched-cert server.");
 }

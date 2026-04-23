@@ -289,24 +289,6 @@
     ]
   },
   {
-    "name": "io.ballerina.stdlib.ftp.transport.ftps.HostnameVerifyingFtpsFileProvider",
-    "methods": [
-      {
-        "name": "<init>",
-        "parameterTypes": []
-      }
-    ]
-  },
-  {
-    "name": "io.ballerina.stdlib.ftp.transport.ftps.HostnameVerifyingFtpClientWrapper"
-  },
-  {
-    "name": "io.ballerina.stdlib.ftp.transport.ftps.HostnameVerifyingFtpsConnectionFactory"
-  },
-  {
-    "name": "io.ballerina.stdlib.ftp.transport.ftps.HostnameVerifyingFtpsConfigHelper"
-  },
-  {
     "name": "org.apache.commons.vfs2.provider.gzip.GzipFileProvider",
     "methods": [
       {

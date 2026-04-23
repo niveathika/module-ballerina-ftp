@@ -26,6 +26,7 @@ The conforming implementation of the specification is released and included in t
    * 3.1 [Initializing the Client](#31-initializing-the-client)
       * 3.1.1 [Insecure Client](#311-insecure-client)
       * 3.1.2 [Secure Client](#312-secure-client)
+      * 3.1.3 [Secure FTPS Client](#313-secure-ftps-client)
    * 3.2 [Writing Files](#32-writing-files)
       * 3.2.1 [Write Operations](#321-write-operations)
       * 3.2.2 [Streaming Writes](#322-streaming-writes)

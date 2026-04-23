@@ -544,6 +544,25 @@ public function testFtpsLargeFileStreamReuse() returns error? {
 // Hostname verification regression test.
 const MISMATCHED_KEYSTORE_PATH = "tests/resources/mismatched-keystore.jks";
 
+// Asserts an Error originated from TLS hostname/cert verification rather than
+// unrelated failure (server down, bad creds). Matches the canonical JSSE
+// hostname-mismatch phrases (stable across JDK 17–21+) plus broad TLS keywords
+// as a safety net.
+function assertHostnameVerificationFailure(Error err) {
+    string message = err.message().toLowerAscii();
+    boolean looksLikeTlsFailure = message.includes("subject alternative")
+        || message.includes("no name matching")
+        || message.includes("doesn't match")
+        || message.includes("does not match")
+        || message.includes("certificate")
+        || message.includes("hostname")
+        || message.includes("handshake")
+        || message.includes("ssl")
+        || message.includes("tls");
+    test:assertTrue(looksLikeTlsFailure,
+            string `Expected TLS/hostname verification failure, got: ${err.message()}`);
+}
+
 @test:Config {}
 public function testFtpsHostnameVerificationMismatch() returns error? {
     ClientConfiguration mismatchedConfig = {
@@ -563,14 +582,19 @@ public function testFtpsHostnameVerificationMismatch() returns error? {
         }
     };
 
+    // Cross-test contract: testFtpsHostnameVerificationDisabled connects to the same
+    // server with verifyHostName:false and must succeed; that test is the control
+    // proving the server is reachable, credentials are valid, and the mismatched cert
+    // loads. If both that test and this one's error path pass, the failure here is
+    // attributable to hostname verification rather than unrelated infra.
     Client|Error ftpsClientEp = new (mismatchedConfig);
     if ftpsClientEp is Error {
-        // Expected path: construction fails due to hostname mismatch during TLS handshake.
+        assertHostnameVerificationFailure(ftpsClientEp);
         return;
     }
     boolean|Error result = ftpsClientEp->isDirectory("/");
     if result is Error {
-        // Expected path: first data/control exchange fails hostname verification.
+        assertHostnameVerificationFailure(result);
         return;
     }
     test:assertFail(string `Hostname verification not enforced: cert for other.example.com was accepted for host 127.0.0.1 (isDirectory returned ${result}). See wso2/product-integrator#829.`);

@@ -27,8 +27,6 @@ import org.apache.commons.vfs2.impl.DefaultFileSystemManager;
 import org.apache.commons.vfs2.provider.GenericFileName;
 import org.apache.commons.vfs2.provider.ftps.FtpsFileProvider;
 import org.apache.commons.vfs2.provider.ftps.FtpsFileSystem;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -40,7 +38,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class HostnameVerifyingFtpsFileProvider extends FtpsFileProvider {
 
-    private static final Logger log = LoggerFactory.getLogger(HostnameVerifyingFtpsFileProvider.class);
     private static final String SCHEME_FTPS = "ftps";
     private static final AtomicBoolean REGISTERED = new AtomicBoolean(false);
 
@@ -65,10 +62,10 @@ public final class HostnameVerifyingFtpsFileProvider extends FtpsFileProvider {
             return;
         }
         if (!(manager instanceof DefaultFileSystemManager dfsm)) {
-            log.warn("VFS FileSystemManager is of unexpected type {}; FTPS hostname and trust-chain "
-                    + "verification will not be installed. The permissive default provider remains active.",
-                    manager.getClass().getName());
-            return;
+            throw new FileSystemException(
+                    "FTPS hostname and trust-chain verification cannot be installed: VFS FileSystemManager "
+                            + "is of unexpected type " + manager.getClass().getName()
+                            + "; aborting to avoid silently falling back to the permissive default provider.");
         }
         synchronized (HostnameVerifyingFtpsFileProvider.class) {
             if (REGISTERED.get()) {

@@ -206,7 +206,7 @@ public final class MockFtpServer {
         final ListenerFactory factory = new ListenerFactory();
 
         SslConfigurationFactory ssl = new SslConfigurationFactory();
-        ssl.setKeystoreFile(new File(resources + "/" + keystoreFile));
+        ssl.setKeystoreFile(new File(resources, keystoreFile));
         ssl.setKeystorePassword("changeit");
         factory.setSslConfiguration(ssl.createSslConfiguration());
         factory.setImplicitSsl(implicitMode);
@@ -218,7 +218,7 @@ public final class MockFtpServer {
         user.setName(username);
         user.setPassword(password);
 
-        File dataDirectory = new File(resources + "/datafiles");
+        File dataDirectory = new File(resources, "datafiles");
         if (!dataDirectory.exists()) {
             dataDirectory.mkdirs();
         }

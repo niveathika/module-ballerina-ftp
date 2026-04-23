@@ -161,7 +161,7 @@ A secure FTPS client is initialized by specifying the `FTPS` protocol. Authentic
 - `cert` — Truststore for validating the server certificate chain. When omitted, the JDK's default system truststore is used.
 - `mode` — `EXPLICIT` (default; start plain, upgrade via `AUTH TLS`) or `IMPLICIT` (TLS from connect).
 - `dataChannelProtection` — `PRIVATE` (default), `SAFE`, `CONFIDENTIAL`, or `CLEAR`.
-- `verifyHostName` — Whether to verify that the server certificate's CN/SAN matches the host being connected to. Defaults to `true`. Set to `false` only for development or testing with self-signed certificates whose identity does not match the host.
+- `verifyHostName` — Whether to verify that the server certificate's CN/SAN matches the host being connected to. Defaults to `true`. Set to `false` only for development or testing when a trusted certificate's identity does not match the host. Self-signed or private-CA certificates must still be trusted via `secureSocket.cert` or the default truststore.
 
 Connection attempts fail at the TLS handshake with an `ftp:Error` when the server certificate is not trusted by the configured truststore (or the JDK default), or when `verifyHostName` is `true` and the certificate identity does not match the connect host.
 

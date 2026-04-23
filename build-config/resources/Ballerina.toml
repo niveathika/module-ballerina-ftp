@@ -40,6 +40,7 @@ path = "./lib/commons-io-@commons.io.version@.jar"
 groupId = "org.apache.commons"
 artifactId = "commons-lang3"
 version = "@commons.lang3.version@"
+scope="testOnly"
 path = "./lib/commons-lang3-@commons.lang3.version@.jar"
 
 [[platform.java21.dependency]]

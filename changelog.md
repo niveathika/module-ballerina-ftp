@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## unreleased
 
+### Changed
+
+- Restructure the Ballerina test suite into per-protocol and per-feature test projects under `ballerina-tests/`, with an isolated advisory-mode project for timing-sensitive (file-age/file-dependency) tests
+
 ## [2.18.1] - 2026-03-26
 
 - [Fix conflicting JAR files with FTP and RT warning](https://github.com/ballerina-platform/ballerina-lang/issues/44463)

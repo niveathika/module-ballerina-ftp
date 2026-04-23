@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## unreleased
 
-## [2.18.1] - 2026-02-26
+## [2.18.1] - 2026-03-26
 
 - [Fix conflicting JAR files with FTP and RT warning](https://github.com/ballerina-platform/ballerina-lang/issues/44463)
 

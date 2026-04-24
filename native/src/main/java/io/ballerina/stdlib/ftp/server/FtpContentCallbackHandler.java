@@ -75,6 +75,8 @@ import static io.ballerina.stdlib.ftp.util.FtpContentConverter.deriveFileNamePre
 public class FtpContentCallbackHandler {
 
     private static final Logger log = LoggerFactory.getLogger(FtpContentCallbackHandler.class);
+    private static final String ACTION_AFTER_PROCESS = "afterProcess";
+    private static final String ACTION_AFTER_ERROR = "afterError";
     private final Runtime ballerinaRuntime;
     private final FileSystemManager fileSystemManager;
     private final FileSystemOptions fileSystemOptions;
@@ -131,7 +133,8 @@ public class FtpContentCallbackHandler {
 
                 if (convertedContent instanceof BError bError) {
                     if (FtpUtil.ErrorType.ContentBindingError.errorType().equals(bError.getType().getName())) {
-                        routeToOnError(service, holder, bError, callerObject, fileInfo, listenerPath);
+                        routeToOnError(service, holder, bError, callerObject, fileInfo, listenerPath,
+                                methodType.getName());
                     } else {
                         bError.printStackTrace();
                     }
@@ -304,16 +307,17 @@ public class FtpContentCallbackHandler {
     }
 
     private void routeToOnError(BObject service, FormatMethodsHolder holder, BError error, BObject callerObject,
-                                FileInfo fileInfo, String listenerPath) {
-        if (!holder.hasOnErrorMethod()) {
-            // No onError handler, error is already logged
-            error.printStackTrace();
-            return;
-        }
+                                FileInfo fileInfo, String listenerPath, String contentMethodName) {
+        // Binding failed before the content handler ran — the content method's afterError is the
+        // user's declared "corrupted file" destination. It is the fallback for any post-process
+        // slot the onError method's @FunctionConfig does not declare.
+        Optional<PostProcessAction> contentAfterError = holder.getAfterErrorAction(contentMethodName);
 
         Optional<MethodType> onErrorMethodOpt = holder.getOnErrorMethod();
         if (onErrorMethodOpt.isEmpty()) {
             error.printStackTrace();
+            contentAfterError.ifPresent(action -> Thread.startVirtualThread(() ->
+                    executePostProcessAction(action, fileInfo, callerObject, listenerPath, ACTION_AFTER_ERROR)));
             return;
         }
 
@@ -321,16 +325,18 @@ public class FtpContentCallbackHandler {
 
         Optional<PostProcessAction> onErrorAfterProcess = holder.getAfterProcessAction(onErrorMethod.getName());
         Optional<PostProcessAction> onErrorAfterError = holder.getAfterErrorAction(onErrorMethod.getName());
-        boolean hasOnErrorActions = onErrorAfterProcess.isPresent() || onErrorAfterError.isPresent();
 
-        // Prepare arguments for onError method
+        // Per slot: honour what onError declares; fall back to the content method's afterError
+        // for any slot onError left empty. The source file already failed binding, so an empty
+        // slot must not mean "do nothing" — it means "use the content method's afterError".
+        Optional<PostProcessAction> effectiveAfterProcess =
+                onErrorAfterProcess.isPresent() ? onErrorAfterProcess : contentAfterError;
+        Optional<PostProcessAction> effectiveAfterError =
+                onErrorAfterError.isPresent() ? onErrorAfterError : contentAfterError;
+
         Object[] methodArguments = prepareOnErrorMethodArguments(onErrorMethod, error, callerObject);
-
-        // Invoke onError asynchronously and apply afterProcess/afterError actions
         invokeOnErrorMethodAsync(service, onErrorMethod.getName(), methodArguments, fileInfo, callerObject,
-                listenerPath,
-                hasOnErrorActions ? onErrorAfterProcess : Optional.empty(),
-                hasOnErrorActions ? onErrorAfterError : Optional.empty());
+                listenerPath, effectiveAfterProcess, effectiveAfterError);
     }
 
     private Object[] prepareOnErrorMethodArguments(MethodType methodType, BError error, BObject callerObject) {
@@ -371,10 +377,10 @@ public class FtpContentCallbackHandler {
 
             if (isSuccess) {
                 afterProcess.ifPresent(action -> executePostProcessAction(action, fileInfo, callerObject,
-                        listenerPath, "afterProcess"));
+                        listenerPath, ACTION_AFTER_PROCESS));
             } else {
                 afterError.ifPresent(action -> executePostProcessAction(action, fileInfo, callerObject,
-                        listenerPath, "afterError"));
+                        listenerPath, ACTION_AFTER_ERROR));
             }
         });
     }
@@ -396,7 +402,7 @@ public class FtpContentCallbackHandler {
                     ((BError) result).printStackTrace();
                     // Method returned an error - execute afterError action
                     afterError.ifPresent(action -> executePostProcessAction(action, fileInfo, callerObject,
-                            listenerPath, "afterError"));
+                            listenerPath, ACTION_AFTER_ERROR));
                 } else {
                     isSuccess = true;
                 }
@@ -404,19 +410,19 @@ public class FtpContentCallbackHandler {
                 error.printStackTrace();
                 // Method threw an error - execute afterError action
                 afterError.ifPresent(action -> executePostProcessAction(action, fileInfo, callerObject,
-                        listenerPath, "afterError"));
+                        listenerPath, ACTION_AFTER_ERROR));
             } catch (Exception exception) {
                 FtpUtil.createError("Error invoking content method: " + methodName + " - " + exception.getMessage(),
                         exception, FtpConstants.FTP_ERROR).printStackTrace();
                 // Method threw an exception - execute afterError action
                 afterError.ifPresent(action -> executePostProcessAction(action, fileInfo, callerObject,
-                        listenerPath, "afterError"));
+                        listenerPath, ACTION_AFTER_ERROR));
             }
 
             // Execute afterProcess action on success
             if (isSuccess) {
                 afterProcess.ifPresent(action -> executePostProcessAction(action, fileInfo, callerObject,
-                        listenerPath, "afterProcess"));
+                        listenerPath, ACTION_AFTER_PROCESS));
             }
         });
     }

@@ -760,3 +760,203 @@ function testFunctionConfig_AfterErrorDelete() returns error? {
     test:assertTrue(exists is boolean && !<boolean>exists,
         "afterError=DELETE should remove the file when the handler returns an error");
 }
+
+// Regression tests for https://github.com/wso2/product-integrator/issues/1161.
+// When strict CSV binding raises a ContentBindingError the file must be routed to the content
+// method's afterError directory (or to the onError method's own post-process action when
+// declared). Previously the listener dispatched to onError but never honoured the content
+// method's own afterError, so the corrupted file was left in the source directory and
+// re-picked on every poll.
+type CorruptCsvContent record {|
+    string name;
+    int age;
+    string gender;
+|};
+
+const string CORRUPT_CSV_DIR = "/home/in/adv-postproc-corrupt-csv";
+const string CORRUPT_CSV_PROCESSED_DIR = "/home/in/adv-postproc-corrupt-csv-processed";
+const string CORRUPT_CSV_ERROR_DIR = "/home/in/adv-postproc-corrupt-csv-error";
+
+// Header is missing the required `age` column — strict binding to CorruptCsvContent must fail.
+const string CORRUPT_CSV_PAYLOAD = "name,sex,gender\n" +
+    "Alice Johnson,28,Female\n" +
+    "Bob Martinez,34,Male\n";
+
+isolated boolean corruptCsvHandlerInvoked = false;
+isolated boolean onErrorCorruptCsvInvoked = false;
+isolated boolean corruptCsvHandlerB = false;
+isolated boolean corruptCsvHandlerC = false;
+isolated boolean corruptCsvOnErrorC = false;
+
+function waitUntilFileAt(string path) returns boolean {
+    return waitUntil(function() returns boolean {
+        boolean|ftp:Error exists = contentFtpClient->exists(path);
+        return exists is boolean && <boolean>exists;
+    }, 30);
+}
+
+// No onError declared → content method's afterError must fire and move the file to /error.
+@test:Config {
+    groups: ["ftp-listener-advanced", "function-config"],
+    dependsOn: [testFunctionConfig_AfterErrorDelete]
+}
+function testFunctionConfig_CorruptCsvRoutesToAfterError() returns error? {
+    lock { corruptCsvHandlerInvoked = false; }
+
+    ftp:Service svc = service object {
+        @ftp:FunctionConfig {
+            afterProcess: {moveTo: CORRUPT_CSV_PROCESSED_DIR},
+            afterError: {moveTo: CORRUPT_CSV_ERROR_DIR}
+        }
+        remote function onFileCsv(CorruptCsvContent[] contents, ftp:FileInfo fileInfo) returns error? {
+            lock { corruptCsvHandlerInvoked = true; }
+        }
+    };
+
+    ftp:Listener l = check new (contentListenerConfig(CORRUPT_CSV_DIR, "cbe-noonerr.*\\.csv", 2));
+    check l.attach(svc);
+    check l.'start();
+    runtime:registerListener(l);
+
+    string remotePath = CORRUPT_CSV_DIR + "/cbe-noonerr.csv";
+    string movedPath = CORRUPT_CSV_ERROR_DIR + "/cbe-noonerr.csv";
+    check contentFtpClient->putText(remotePath, CORRUPT_CSV_PAYLOAD);
+
+    boolean moved = waitUntilFileAt(movedPath);
+
+    runtime:deregisterListener(l);
+    check l.gracefulStop();
+
+    boolean handlerCalled;
+    lock { handlerCalled = corruptCsvHandlerInvoked; }
+    test:assertFalse(handlerCalled,
+        "onFileCsv must not be invoked when CSV headers do not satisfy the target record type");
+    test:assertTrue(moved, "Corrupted CSV should be moved to the afterError directory");
+
+    boolean inSource = check contentFtpClient->exists(remotePath);
+    test:assertFalse(inSource,
+        "Corrupted CSV must be removed from the source directory (the core regression)");
+
+    boolean inProcessed = check contentFtpClient->exists(CORRUPT_CSV_PROCESSED_DIR + "/cbe-noonerr.csv");
+    test:assertFalse(inProcessed, "Corrupted CSV must not be moved to the afterProcess directory");
+
+    check contentFtpClient->delete(movedPath);
+}
+
+// onError declared without its own post-process actions → fall back to the content method's
+// afterError, and onError is still invoked for notification.
+@test:Config {
+    groups: ["ftp-listener-advanced", "function-config"],
+    dependsOn: [testFunctionConfig_CorruptCsvRoutesToAfterError]
+}
+function testFunctionConfig_CorruptCsv_OnErrorWithoutActions() returns error? {
+    lock { onErrorCorruptCsvInvoked = false; }
+    lock { corruptCsvHandlerB = false; }
+
+    ftp:Service svc = service object {
+        @ftp:FunctionConfig {
+            afterProcess: {moveTo: CORRUPT_CSV_PROCESSED_DIR},
+            afterError: {moveTo: CORRUPT_CSV_ERROR_DIR}
+        }
+        remote function onFileCsv(CorruptCsvContent[] contents, ftp:FileInfo fileInfo) returns error? {
+            lock { corruptCsvHandlerB = true; }
+        }
+
+        remote function onError(ftp:Error err) returns error? {
+            lock { onErrorCorruptCsvInvoked = true; }
+        }
+    };
+
+    ftp:Listener l = check new (contentListenerConfig(CORRUPT_CSV_DIR, "cbe-onerr-noact.*\\.csv", 2));
+    check l.attach(svc);
+    check l.'start();
+    runtime:registerListener(l);
+
+    string remotePath = CORRUPT_CSV_DIR + "/cbe-onerr-noact.csv";
+    string movedPath = CORRUPT_CSV_ERROR_DIR + "/cbe-onerr-noact.csv";
+    check contentFtpClient->putText(remotePath, CORRUPT_CSV_PAYLOAD);
+
+    boolean moved = waitUntilFileAt(movedPath);
+
+    runtime:deregisterListener(l);
+    check l.gracefulStop();
+
+    boolean onErrorCalled;
+    lock { onErrorCalled = onErrorCorruptCsvInvoked; }
+    boolean handlerCalled;
+    lock { handlerCalled = corruptCsvHandlerB; }
+    test:assertFalse(handlerCalled,
+        "onFileCsv must not be invoked when binding fails");
+    test:assertTrue(onErrorCalled, "onError should be invoked for a ContentBindingError");
+    test:assertTrue(moved,
+        "Corrupted CSV should fall back to the content method's afterError directory");
+
+    boolean inSource = check contentFtpClient->exists(remotePath);
+    test:assertFalse(inSource,
+        "Corrupted CSV must be removed from the source directory (the core regression)");
+
+    check contentFtpClient->delete(movedPath);
+}
+
+// onError declared with its own afterProcess; onError returns success → onError's
+// afterProcess wins; content method's afterError is suppressed.
+@test:Config {
+    groups: ["ftp-listener-advanced", "function-config"],
+    dependsOn: [testFunctionConfig_CorruptCsv_OnErrorWithoutActions]
+}
+function testFunctionConfig_CorruptCsv_OnErrorWithOwnActions() returns error? {
+    lock { corruptCsvHandlerC = false; }
+    lock { corruptCsvOnErrorC = false; }
+
+    ftp:Service svc = service object {
+        @ftp:FunctionConfig {
+            afterProcess: {moveTo: CORRUPT_CSV_PROCESSED_DIR},
+            afterError: {moveTo: CORRUPT_CSV_ERROR_DIR}
+        }
+        remote function onFileCsv(CorruptCsvContent[] contents, ftp:FileInfo fileInfo) returns error? {
+            lock { corruptCsvHandlerC = true; }
+        }
+
+        @ftp:FunctionConfig {
+            afterProcess: {moveTo: CORRUPT_CSV_PROCESSED_DIR}
+        }
+        remote function onError(ftp:Error err) returns error? {
+            lock { corruptCsvOnErrorC = true; }
+        }
+    };
+
+    ftp:Listener l = check new (contentListenerConfig(CORRUPT_CSV_DIR, "cbe-onerr-act.*\\.csv", 2));
+    check l.attach(svc);
+    check l.'start();
+    runtime:registerListener(l);
+
+    string remotePath = CORRUPT_CSV_DIR + "/cbe-onerr-act.csv";
+    string movedPath = CORRUPT_CSV_PROCESSED_DIR + "/cbe-onerr-act.csv";
+    check contentFtpClient->putText(remotePath, CORRUPT_CSV_PAYLOAD);
+
+    boolean moved = waitUntilFileAt(movedPath);
+
+    runtime:deregisterListener(l);
+    check l.gracefulStop();
+
+    boolean handlerCalled;
+    lock { handlerCalled = corruptCsvHandlerC; }
+    boolean onErrorCalled;
+    lock { onErrorCalled = corruptCsvOnErrorC; }
+    test:assertFalse(handlerCalled,
+        "onFileCsv must not be invoked when binding fails (ensures the binding-failure path is exercised)");
+    test:assertTrue(onErrorCalled,
+        "onError must be invoked for a ContentBindingError");
+    test:assertTrue(moved,
+        "onError's afterProcess should govern when it declares its own post-process action");
+
+    boolean inSource = check contentFtpClient->exists(remotePath);
+    test:assertFalse(inSource,
+        "Corrupted CSV must be removed from the source directory (the core regression)");
+
+    boolean inContentError = check contentFtpClient->exists(CORRUPT_CSV_ERROR_DIR + "/cbe-onerr-act.csv");
+    test:assertFalse(inContentError,
+        "Content method's afterError must be suppressed when onError declares the afterProcess slot");
+
+    check contentFtpClient->delete(movedPath);
+}

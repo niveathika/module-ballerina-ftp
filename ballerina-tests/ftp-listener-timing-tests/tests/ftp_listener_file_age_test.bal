@@ -64,10 +64,12 @@ isolated boolean ageMaxFreshDelivered = false;
 function testFileAgeFilter_MaxAge_DeliversFreshFile() returns error? {
     lock { ageMaxFreshDelivered = false; }
 
+    // maxAge: 120s gives a safe margin over the 60s minute-precision worst case
+    // when the server reports lastModified from LIST rather than MDTM.
     ftp:Service ageService = @ftp:ServiceConfig {
         path: AGE_MAX_DIR,
         fileNamePattern: ".*\\.maxfresh",
-        fileAgeFilter: {maxAge: 30.0}
+        fileAgeFilter: {maxAge: 120.0}
     }
     service object {
         remote function onFileChange(ftp:WatchEvent & readonly event) {
@@ -117,13 +119,14 @@ function testFileAgeFilter_MaxAge_SkipsStaleFile() returns error? {
     // Upload the file BEFORE starting the listener so it can age
     check ageFtpClient->putText(AGE_MAX_DIR + "/stale.maxold", "stale-content");
 
-    // Wait for file to exceed maxAge (10 seconds)
-    runtime:sleep(15);
+    // Wait longer than maxAge plus a safety margin over minute-precision rounding
+    // (LIST-reported lastModified can round up to 60s)
+    runtime:sleep(90);
 
     ftp:Service ageService = @ftp:ServiceConfig {
         path: AGE_MAX_DIR,
         fileNamePattern: ".*\\.maxold",
-        fileAgeFilter: {maxAge: 10.0}
+        fileAgeFilter: {maxAge: 30.0}
     }
     service object {
         remote function onFileChange(ftp:WatchEvent & readonly event) {
@@ -303,7 +306,7 @@ function testFileAgeFilter_CreationTimeMode_FallsBackToLastModified() returns er
     ftp:Service ageService = @ftp:ServiceConfig {
         path: AGE_MAX_DIR,
         fileNamePattern: ".*\\.ctfb",
-        fileAgeFilter: {maxAge: 30.0, ageCalculationMode: ftp:CREATION_TIME}
+        fileAgeFilter: {maxAge: 120.0, ageCalculationMode: ftp:CREATION_TIME}
     }
     service object {
         remote function onFileChange(ftp:WatchEvent & readonly event) {

@@ -68,15 +68,26 @@ public final class FileTransportUtils {
 
     /**
      * INSECURE trust manager that accepts any certificate. Installed only when
-     * the user explicitly sets {@code secureSocket.verifyServerCert = false}.
+     * the user explicitly sets {@code secureSocket.verifyServerCert = false} to
+     * preserve legacy behaviour for development setups that cannot use a proper
+     * truststore. A warning log is emitted on every connector init that selects
+     * this path.
+     *
+     * <p>The empty checkClientTrusted / checkServerTrusted overrides are the
+     * documented way to opt out of server certificate validation; Sonar rule
+     * java:S4830 is suppressed intentionally because the alternative is to not
+     * offer the opt-out at all.</p>
      */
+    @SuppressWarnings("java:S4830") // Opt-in insecure trust manager behind verifyServerCert=false.
     private static final X509TrustManager ACCEPT_ALL_TRUST_MANAGER = new X509TrustManager() {
         @Override
+        @SuppressWarnings("java:S4830")
         public void checkClientTrusted(X509Certificate[] chain, String authType) {
             // Intentional no-op: insecure mode.
         }
 
         @Override
+        @SuppressWarnings("java:S4830")
         public void checkServerTrusted(X509Certificate[] chain, String authType) {
             // Intentional no-op: insecure mode.
         }

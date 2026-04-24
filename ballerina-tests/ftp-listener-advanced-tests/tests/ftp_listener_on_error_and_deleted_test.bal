@@ -204,7 +204,11 @@ function testOnError_CallerDeletesFile() returns error? {
     test:assertTrue(onErrorCallerFilePath.endsWith(".json"), "filePath should reference the .json file");
 
     // File should already be gone; ignore any error
-    check errorDeleteFtpClient->delete(remotePath);
+    do {
+        check errorDeleteFtpClient->delete(remotePath);
+    } on fail {
+        // expected: handler already deleted it
+    }
 }
 
 // ContentBindingError type structure is correct

@@ -288,19 +288,6 @@ task publishTestCommonPackageToLocal {
     }
 }
 
-task commitTomlFiles {
-    doLast {
-        project.exec {
-            ignoreExitValue true
-            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                commandLine 'cmd', '/c', "git commit -m \"[Automated] Update the native jar versions\" Ballerina.toml Dependencies.toml"
-            } else {
-                commandLine 'sh', '-c', "git commit -m '[Automated] Update the native jar versions' Ballerina.toml Dependencies.toml"
-            }
-        }
-    }
-}
-
 task ballerinaTest {
     dependsOn(":${packageName}-${packageOrg}:build")
     dependsOn(updateTomlVersions)
@@ -308,7 +295,6 @@ task ballerinaTest {
     dependsOn(publishTestCommonPackageToLocal)
     dependsOn(startTestUtilAsDaemon)
     dependsOn(waitForMockServers)
-    finalizedBy(commitTomlFiles)
 
     doLast {
         testPackages.each { testPackage ->

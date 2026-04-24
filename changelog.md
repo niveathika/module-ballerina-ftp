@@ -5,14 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## unreleased
 
+### Added
+
+- Add `secureSocket.verifyServerCert` flag (default `true`) to `ftp:SecureSocket` for opting out of FTPS server-certificate validation in development setups. See the breaking-change note below.
+
+### Changed
+
+- **BREAKING:** [FTPS now validates server certificates by default](https://github.com/ballerina-platform/ballerina-library/issues/8761). Previously, `secureSocket` configurations that omitted `cert` silently accepted any server certificate. Connections that were succeeding against self-signed or private-CA servers without a configured truststore will now fail with a PKIX validation error. To restore the old behavior, either configure `cert` properly, add the server certificate to the JVM `cacerts`, or set `verifyServerCert: false` (insecure — for dev only).
+- Restructure the Ballerina test suite into per-protocol and per-feature test projects under `ballerina-tests/`, with an isolated advisory-mode project for timing-sensitive (file-age/file-dependency) tests
+
 ### Fixed
 
 - [Apply the content method's `afterError` action when content binding fails before the handler is invoked](https://github.com/wso2/product-integrator/issues/1161)
 - [Validate `fileAgeFilter` values at listener startup; reject negative `minAge`/`maxAge` and `minAge` greater than `maxAge`](https://github.com/wso2/product-integrator/issues/1151)
-
-### Changed
-
-- Restructure the Ballerina test suite into per-protocol and per-feature test projects under `ballerina-tests/`, with an isolated advisory-mode project for timing-sensitive (file-age/file-dependency) tests
 
 ## [2.18.1] - 2026-03-26
 
@@ -28,8 +33,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 
 - [Fix SFTP listener blocking on shutdown due to exec channel probe on restricted servers](https://github.com/ballerina-platform/ballerina-library/issues/8708)
-
-### Changed
 
 ## [2.17.1] - 2026-02-26
 

@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.security.KeyStore;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Locale;
 import java.util.Map;
@@ -45,6 +46,7 @@ import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 
 import static io.ballerina.stdlib.ftp.util.FtpConstants.ENDPOINT_CONFIG_PREFERRED_METHODS;
 import static io.ballerina.stdlib.ftp.util.FtpConstants.IDENTITY_PASS_PHRASE;
@@ -63,6 +65,27 @@ public final class FileTransportUtils {
 
     private static final Pattern URL_PATTERN = Pattern.compile("^[a-z][a-z0-9+.-]*://", Pattern.CASE_INSENSITIVE);
     private static final Pattern USERINFO_WITH_PASSWORD = Pattern.compile("://([^/@:]+):([^/@]*)@");
+
+    /**
+     * INSECURE trust manager that accepts any certificate. Installed only when
+     * the user explicitly sets {@code secureSocket.verifyServerCert = false}.
+     */
+    private static final X509TrustManager ACCEPT_ALL_TRUST_MANAGER = new X509TrustManager() {
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType) {
+            // Intentional no-op: insecure mode.
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType) {
+            // Intentional no-op: insecure mode.
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return new X509Certificate[0];
+        }
+    };
 
     /**
      * A utility method for setting the relevant configurations for the file system in question.
@@ -243,26 +266,45 @@ public final class FileTransportUtils {
                 }
             }
 
-            // 2. Configure TrustStore (Server Validation)
-            Object truststorePathObj = options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH);
-            if (truststorePathObj != null) {
-                String trustStorePath = (String) truststorePathObj;
-                Object passwordObj = options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD);
-                String password = (passwordObj != null) ? passwordObj.toString() : null;
+            // 2. Configure TrustStore (Server Validation).
+            //
+            // Always install a TrustManager so server certificate validation cannot be
+            // silently skipped. When the user opts out via verifyServerCert=false, an
+            // accept-all manager is installed (insecure — for dev only). When no
+            // truststore is configured, the JVM default cacerts is used by passing
+            // null to TrustManagerFactory.init.
+            boolean verifyServerCert = true;
+            Object verifyServerCertObj = options.get(FtpConstants.ENDPOINT_CONFIG_VERIFY_SERVER_CERT);
+            if (verifyServerCertObj != null) {
+                verifyServerCert = Boolean.parseBoolean(verifyServerCertObj.toString());
+            }
 
-                // Load TrustStore here
-                KeyStore trustStore = FtpUtil.loadKeyStore(trustStorePath, password);
+            if (!verifyServerCert) {
+                log.warn("FTPS configured with verifyServerCert=false. Server certificate "
+                        + "validation is disabled. This is INSECURE — any server certificate "
+                        + "will be accepted, including expired or untrusted ones.");
+                ftpsConfigBuilder.setTrustManager(opts, ACCEPT_ALL_TRUST_MANAGER);
+            } else {
+                KeyStore trustStore = null;
+                Object truststorePathObj = options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH);
+                if (truststorePathObj != null) {
+                    String trustStorePath = (String) truststorePathObj;
+                    Object passwordObj = options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD);
+                    String password = (passwordObj != null) ? passwordObj.toString() : null;
+                    trustStore = FtpUtil.loadKeyStore(trustStorePath, password);
+                }
 
-                // Init TrustManagerFactory
-                TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                TrustManagerFactory tmf = TrustManagerFactory.getInstance(
+                        TrustManagerFactory.getDefaultAlgorithm());
+                // null trustStore = JVM default cacerts. Without this we'd silently
+                // accept any server cert, defeating TLS.
                 tmf.init(trustStore);
                 TrustManager[] trustManagers = tmf.getTrustManagers();
-
                 if (trustManagers != null && trustManagers.length > 0) {
                     ftpsConfigBuilder.setTrustManager(opts, trustManagers[0]);
                 } else {
-                    log.warn("FTPS configured with TrustStore path {} but no TrustManagers were found.",
-                            trustStorePath);
+                    log.warn("FTPS TrustManagerFactory returned no TrustManagers; "
+                            + "server certificate validation will fall back to VFS defaults.");
                 }
             }
         } catch (Exception e) {

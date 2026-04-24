@@ -316,6 +316,64 @@ function testFtpsConnectWithWrongKeystorePassword() {
 }
 
 // =============================================================================
+// Server certificate validation (verifyServerCert)
+// =============================================================================
+
+// With verifyServerCert default (true) and no `cert` configured, the JVM default
+// cacerts is used. It does not trust the mock server's self-signed cert, so the
+// TLS handshake must fail. This is the secure default that replaces the previous
+// silent accept-all behaviour.
+@test:Config {
+    groups: ["ftps-connection", "negative", "tls"]
+}
+function testFtpsConnectNoCertRejectsUntrustedServer() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:FTPS,
+        host: commons:FTP_HOST,
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                key: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    test:assertTrue(result is ftp:Error,
+            "Expected untrusted self-signed server cert to be rejected by default");
+    if result is ftp:Error {
+        test:assertTrue(result.message().startsWith("Error while connecting to the FTP server"),
+                "Unexpected error message: " + result.message());
+    }
+}
+
+// Explicit opt-out via verifyServerCert=false installs an accept-all
+// TrustManager. Intended for development only; mirrors
+// http:SecureSocket.verifyHostname=false.
+@test:Config {
+    groups: ["ftps-connection", "tls"]
+}
+function testFtpsConnectVerifyServerCertFalseAcceptsUntrustedServer() returns error? {
+    ftp:Client ftpsClient = check new ({
+        protocol: ftp:FTPS,
+        host: commons:FTP_HOST,
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                key: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                verifyServerCert: false,
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    boolean|ftp:Error result = ftpsClient->exists(commons:FTPS_ROOT);
+    test:assertFalse(result is ftp:Error,
+            "Expected FTPS connection to succeed when verifyServerCert=false");
+    check ftpsClient->close();
+}
+
+// =============================================================================
 // Negative: unreachable server
 // =============================================================================
 

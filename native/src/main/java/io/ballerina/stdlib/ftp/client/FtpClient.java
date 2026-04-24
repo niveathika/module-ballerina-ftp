@@ -385,15 +385,16 @@ public class FtpClient {
     private static Object configureFtpsSecureSocket(BMap secureSocket, Map<String, Object> ftpConfig) {
         FtpUtil.configureFtpsMode(secureSocket, ftpConfig);
         FtpUtil.configureFtpsDataChannelProtection(secureSocket, ftpConfig);
-        
-        FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY, 
-                FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PATH, 
-                FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PASSWORD, 
+        FtpUtil.configureVerifyServerCert(secureSocket, ftpConfig);
+
+        FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY,
+                FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PATH,
+                FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PASSWORD,
                 ftpConfig);
 
-        FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_TRUSTSTORE, 
-                FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH, 
-                FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD, 
+        FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_TRUSTSTORE,
+                FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH,
+                FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD,
                 ftpConfig);
 
         return null;

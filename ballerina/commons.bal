@@ -64,6 +64,12 @@ public type SecureSocket record {|
     crypto:KeyStore key?;
     # Certificate configuration for server certificate validation
     crypto:TrustStore cert?;
+    # Whether the server's certificate is validated against the configured truststore
+    # (or the JVM default `cacerts` when no `cert` is provided). Setting this to
+    # `false` accepts any server certificate and is **insecure** — only use it for
+    # development against self-signed servers when configuring a proper truststore
+    # is not feasible.
+    boolean verifyServerCert = true;
     # FTPS connection mode.
     FtpsMode mode = EXPLICIT;
     # Data channel protection level. Controls encryption of the data channel used for file transfers.

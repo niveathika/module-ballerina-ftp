@@ -686,8 +686,9 @@ public class FtpListenerHelper {
             throws BallerinaFtpException {
         FtpUtil.configureFtpsMode(secureSocket, params);
         FtpUtil.configureFtpsDataChannelProtection(secureSocket, params);
-        
-        String keyStorePath = FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY, 
+        FtpUtil.configureVerifyServerCert(secureSocket, params);
+
+        String keyStorePath = FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY,
                 FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PATH, 
                 FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PASSWORD, 
                 params);

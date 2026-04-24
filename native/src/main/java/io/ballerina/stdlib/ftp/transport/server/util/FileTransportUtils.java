@@ -35,16 +35,25 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.net.Socket;
 import java.security.KeyStore;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateParsingException;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
+import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.SSLEngine;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509ExtendedTrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import static io.ballerina.stdlib.ftp.util.FtpConstants.ENDPOINT_CONFIG_PREFERRED_METHODS;
 import static io.ballerina.stdlib.ftp.util.FtpConstants.IDENTITY_PASS_PHRASE;
@@ -259,7 +268,8 @@ public final class FileTransportUtils {
                 TrustManager[] trustManagers = tmf.getTrustManagers();
 
                 if (trustManagers != null && trustManagers.length > 0) {
-                    ftpsConfigBuilder.setTrustManager(opts, trustManagers[0]);
+                    TrustManager installed = maybeWithHostnameVerification(trustManagers[0], options);
+                    ftpsConfigBuilder.setTrustManager(opts, installed);
                 } else {
                     log.warn("FTPS configured with TrustStore path {} but no TrustManagers were found.",
                             trustStorePath);
@@ -439,5 +449,231 @@ public final class FileTransportUtils {
             return url;
         }
         return USERINFO_WITH_PASSWORD.matcher(url).replaceFirst("://$1:***@");
+    }
+
+    /**
+     * Wraps the given TrustManager with a hostname-verifying overlay when the
+     * secureSocket config requests it (default) — unless the caller explicitly
+     * opts out via {@code verifyHostname=false}. The verifier checks the
+     * presented cert's Subject Alternative Names (DNS/IP) and Common Name
+     * against the hostname from the configured URI.
+     */
+    private static TrustManager maybeWithHostnameVerification(TrustManager tm, Map<String, Object> options) {
+        Object flag = options.get(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME);
+        boolean verify = flag == null || Boolean.parseBoolean(flag.toString());
+        if (!verify) {
+            log.warn("FTPS configured with verifyHostname=false. Server certificates are accepted "
+                    + "regardless of hostname. This is INSECURE — do not use in production.");
+            return tm;
+        }
+        String host = extractHostFromUri(options);
+        if (host == null || host.isBlank()) {
+            log.warn("FTPS hostname verification requested but no host could be resolved from the URI; "
+                    + "falling back to chain-only trust.");
+            return tm;
+        }
+        if (tm instanceof X509ExtendedTrustManager ext) {
+            return new HostnameVerifyingTrustManager(ext, host);
+        }
+        if (tm instanceof X509TrustManager basic) {
+            return new HostnameVerifyingTrustManager(
+                    new DelegatingExtendedTrustManager(basic), host);
+        }
+        log.warn("FTPS TrustManager is not an X509 manager; hostname verification skipped.");
+        return tm;
+    }
+
+    private static String extractHostFromUri(Map<String, Object> options) {
+        Object uri = options.get(FtpConstants.URI);
+        if (uri == null) {
+            return null;
+        }
+        try {
+            return new java.net.URI(uri.toString()).getHost();
+        } catch (java.net.URISyntaxException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Verifies that the first certificate in the chain matches the expected
+     * hostname, using SAN (DNS/IP) first then falling back to CN. Throws
+     * CertificateException on mismatch so the TLS handshake fails.
+     */
+    private static final class HostnameVerifyingTrustManager extends X509ExtendedTrustManager {
+
+        private final X509ExtendedTrustManager delegate;
+        private final String expectedHost;
+
+        HostnameVerifyingTrustManager(X509ExtendedTrustManager delegate, String expectedHost) {
+            this.delegate = delegate;
+            this.expectedHost = expectedHost;
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket)
+                throws CertificateException {
+            delegate.checkServerTrusted(chain, authType, socket);
+            verifyHostname(chain);
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine)
+                throws CertificateException {
+            delegate.checkServerTrusted(chain, authType, engine);
+            verifyHostname(chain);
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType)
+                throws CertificateException {
+            delegate.checkServerTrusted(chain, authType);
+            verifyHostname(chain);
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket)
+                throws CertificateException {
+            delegate.checkClientTrusted(chain, authType, socket);
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine)
+                throws CertificateException {
+            delegate.checkClientTrusted(chain, authType, engine);
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType)
+                throws CertificateException {
+            delegate.checkClientTrusted(chain, authType);
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return delegate.getAcceptedIssuers();
+        }
+
+        private void verifyHostname(X509Certificate[] chain) throws CertificateException {
+            if (chain == null || chain.length == 0) {
+                throw new CertificateException("Empty certificate chain");
+            }
+            X509Certificate cert = chain[0];
+
+            Collection<List<?>> sans = null;
+            try {
+                sans = cert.getSubjectAlternativeNames();
+            } catch (CertificateParsingException ignored) {
+                // Fall through to CN match.
+            }
+            if (sans != null) {
+                for (List<?> san : sans) {
+                    int type = (Integer) san.get(0);
+                    // 2 = DNS, 7 = IP address
+                    if (type == 2 || type == 7) {
+                        String value = String.valueOf(san.get(1));
+                        if (matchesHostname(value, expectedHost)) {
+                            return;
+                        }
+                    }
+                }
+            }
+
+            String cn = extractCommonName(cert.getSubjectX500Principal().getName());
+            if (cn != null && matchesHostname(cn, expectedHost)) {
+                return;
+            }
+
+            throw new CertificateException(
+                    "No subject alternative names or CN in the server certificate match the requested host \""
+                            + expectedHost + "\".");
+        }
+    }
+
+    /**
+     * Adapts a basic X509TrustManager to the extended interface by ignoring
+     * the Socket/SSLEngine context (chain verification is identical).
+     */
+    private static final class DelegatingExtendedTrustManager extends X509ExtendedTrustManager {
+        private final X509TrustManager delegate;
+
+        DelegatingExtendedTrustManager(X509TrustManager delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+            delegate.checkClientTrusted(chain, authType);
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType, Socket socket)
+                throws CertificateException {
+            delegate.checkClientTrusted(chain, authType);
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] chain, String authType, SSLEngine engine)
+                throws CertificateException {
+            delegate.checkClientTrusted(chain, authType);
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType) throws CertificateException {
+            delegate.checkServerTrusted(chain, authType);
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType, Socket socket)
+                throws CertificateException {
+            delegate.checkServerTrusted(chain, authType);
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] chain, String authType, SSLEngine engine)
+                throws CertificateException {
+            delegate.checkServerTrusted(chain, authType);
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            return delegate.getAcceptedIssuers();
+        }
+    }
+
+    private static boolean matchesHostname(String pattern, String host) {
+        if (pattern == null || host == null) {
+            return false;
+        }
+        String p = pattern.trim();
+        String h = host.trim();
+        if (p.equalsIgnoreCase(h)) {
+            return true;
+        }
+        // Simple wildcard match: "*.example.com" matches "a.example.com" but not "example.com"
+        // or "a.b.example.com" (single label left of the dot).
+        if (p.startsWith("*.")) {
+            String suffix = p.substring(1).toLowerCase(Locale.ROOT);
+            String lowerHost = h.toLowerCase(Locale.ROOT);
+            if (lowerHost.endsWith(suffix)) {
+                String label = lowerHost.substring(0, lowerHost.length() - suffix.length());
+                return !label.isEmpty() && !label.contains(".");
+            }
+        }
+        return false;
+    }
+
+    private static String extractCommonName(String subjectDn) {
+        // Subject DN looks like "CN=host,O=org,C=US". Pull the first CN.
+        if (subjectDn == null) {
+            return null;
+        }
+        for (String part : subjectDn.split(",")) {
+            String trimmed = part.trim();
+            if (trimmed.regionMatches(true, 0, "CN=", 0, 3)) {
+                return trimmed.substring(3);
+            }
+        }
+        return null;
     }
 }

@@ -5,14 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## unreleased
 
+### Added
+
+- Add `secureSocket.verifyHostname` flag (default `true`) to `ftp:SecureSocket` for opting out of FTPS server-hostname verification. See the breaking-change note below.
+
+### Changed
+
+- **BREAKING:** [FTPS now verifies the server hostname against the presented certificate's SAN/CN by default](https://github.com/wso2/product-integrator/issues/829). Previously, a valid cert for any hostname was silently accepted — an attacker with a valid cert for any host in the truststore could MITM the connection. To restore the old behavior set `secureSocket.verifyHostname: false` (insecure — for dev only).
+- Replace `ballerina-tests/resources/keystore.jks` with a cert whose SAN includes `DNS:localhost` and `IP:127.0.0.1` so the existing mock-server-based tests continue to succeed under default hostname verification.
+- Restructure the Ballerina test suite into per-protocol and per-feature test projects under `ballerina-tests/`, with an isolated advisory-mode project for timing-sensitive (file-age/file-dependency) tests
+
 ### Fixed
 
 - [Apply the content method's `afterError` action when content binding fails before the handler is invoked](https://github.com/wso2/product-integrator/issues/1161)
 - [Validate `fileAgeFilter` values at listener startup; reject negative `minAge`/`maxAge` and `minAge` greater than `maxAge`](https://github.com/wso2/product-integrator/issues/1151)
-
-### Changed
-
-- Restructure the Ballerina test suite into per-protocol and per-feature test projects under `ballerina-tests/`, with an isolated advisory-mode project for timing-sensitive (file-age/file-dependency) tests
 
 ## [2.18.1] - 2026-03-26
 

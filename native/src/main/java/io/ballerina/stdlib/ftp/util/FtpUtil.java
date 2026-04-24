@@ -307,6 +307,20 @@ public class FtpUtil {
         return path;
     }
 
+    /**
+     * Reads the optional {@code verifyHostname} boolean from the secureSocket
+     * record and stores it as a String in the config map. Defaults to
+     * {@code true} when the field is absent.
+     */
+    public static void configureVerifyHostname(BMap secureSocket, Map<String, Object> config) {
+        boolean verify = true;
+        if (secureSocket.containsKey(StringUtils.fromString(FtpConstants.SECURE_SOCKET_VERIFY_HOSTNAME))) {
+            verify = secureSocket.getBooleanValue(
+                    StringUtils.fromString(FtpConstants.SECURE_SOCKET_VERIFY_HOSTNAME));
+        }
+        config.put(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOSTNAME, String.valueOf(verify));
+    }
+
     public static String createUrl(BObject clientConnector, String filePath) throws BallerinaFtpException {
         String username = (String) clientConnector.getNativeData(FtpConstants.ENDPOINT_CONFIG_USERNAME);
         String password = null;

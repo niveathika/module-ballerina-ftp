@@ -316,6 +316,61 @@ function testFtpsConnectWithWrongKeystorePassword() {
 }
 
 // =============================================================================
+// Server certificate hostname verification (verifyHostname)
+// =============================================================================
+
+// The mock server's self-signed cert has SAN=DNS:localhost,IP:127.0.0.1. Connect
+// via an IP that is NOT in SAN — default hostname verification must reject it.
+@test:Config {
+    groups: ["ftps-connection", "negative", "tls"]
+}
+function testFtpsConnectHostnameMismatchRejected() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:FTPS,
+        // 0.0.0.0 is included; use a host not in the SAN to trigger rejection.
+        host: "127.1.2.3",
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                key: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                cert: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    test:assertTrue(result is ftp:Error,
+            "Expected hostname-mismatch failure when connecting via a host not in the cert's SAN/CN");
+}
+
+// Opt-out via verifyHostname=false accepts a cert whose SAN does not match the
+// connect host. Intended for development only; mirrors
+// http:SecureSocket.verifyHostname=false.
+@test:Config {
+    groups: ["ftps-connection", "tls"]
+}
+function testFtpsConnectVerifyHostnameFalseAccepts() returns error? {
+    ftp:Client ftpsClient = check new ({
+        protocol: ftp:FTPS,
+        host: "127.0.0.1",
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                key: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                cert: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                verifyHostname: false,
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    boolean|ftp:Error result = ftpsClient->exists(commons:FTPS_ROOT);
+    test:assertFalse(result is ftp:Error,
+            "Expected FTPS connection to succeed when verifyHostname=false");
+    check ftpsClient->close();
+}
+
+// =============================================================================
 // Negative: unreachable server
 // =============================================================================
 

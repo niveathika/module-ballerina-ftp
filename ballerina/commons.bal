@@ -64,6 +64,11 @@ public type SecureSocket record {|
     crypto:KeyStore key?;
     # Certificate configuration for server certificate validation
     crypto:TrustStore cert?;
+    # Whether the server's hostname is verified against the presented certificate's
+    # SAN / CN after the chain is trusted. Setting this to `false` accepts a valid
+    # certificate for any host and is **insecure** — only use it for development
+    # against non-matching test certificates. Mirrors `http:SecureSocket.verifyHostname`.
+    boolean verifyHostname = true;
     # FTPS connection mode.
     FtpsMode mode = EXPLICIT;
     # Data channel protection level. Controls encryption of the data channel used for file transfers.

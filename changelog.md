@@ -11,7 +11,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 
+- [Apply the content method's `afterError` action when content binding fails before the handler is invoked](https://github.com/wso2/product-integrator/issues/1161)
 - **Security:** Harden FTPS default TLS validation — hostname verification is now enforced by default (opt-out via `verifyHostName: false`) and the default trust chain now uses the JDK system truststore (`cacerts`) instead of commons-net's permissive validity-only default. Previously, FTPS connections silently accepted any in-date certificate, whether self-signed or with a mismatched CN/SAN. See [wso2/product-integrator#829](https://github.com/wso2/product-integrator/issues/829). **Breaking:** users who relied on the permissive default must now either configure `secureSocket.cert` with a truststore that trusts the server's cert, or (for dev/test only) disable verification via `verifyHostName: false`.
+
+### Changed
+
+- Restructure the Ballerina test suite into per-protocol and per-feature test projects under `ballerina-tests/`, with an isolated advisory-mode project for timing-sensitive (file-age/file-dependency) tests
 
 ## [2.18.1] - 2026-03-26
 

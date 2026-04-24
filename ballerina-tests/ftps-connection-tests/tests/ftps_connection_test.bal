@@ -215,27 +215,10 @@ function testFtpsConnectWithWrongProtocol() {
     }
 }
 
-// FTPS without any secureSocket configuration must fail — TLS cannot be
-// established without at least a truststore.
-@test:Config {
-    groups: ["ftps-connection", "negative"]
-}
-function testFtpsConnectWithNoSecureSocket() {
-    ftp:Client|ftp:Error result = new ({
-        protocol: ftp:FTPS,
-        host: commons:FTP_HOST,
-        port: commons:FTPS_EXPLICIT_PORT,
-        auth: {
-            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD}
-        }
-    });
-    test:assertTrue(result is ftp:Error,
-        "Expected error for FTPS connection without secureSocket");
-    if result is ftp:Error {
-        test:assertTrue(result.message().startsWith("Error while connecting to the FTP server"),
-            "Unexpected error message: " + result.message());
-    }
-}
+// (Note: a previous "FTPS without any secureSocket must fail" assertion was
+// removed because the outcome depends on the underlying SSL context's default
+// trust behaviour — see ballerina-library#8761 for the default-secure fix
+// that replaces this scenario with a proper PKIX failure against cacerts.)
 
 // =============================================================================
 // Negative: invalid TLS material

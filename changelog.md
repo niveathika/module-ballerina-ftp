@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 
 - Added `verifyHostName` field (default `true`) to `ftp:SecureSocket` to verify FTPS server certificate CN/SAN against the connect host.
+- [Extend `ftp:SecureSocket.cert` to accept a PEM file path string in addition to `crypto:TrustStore` (parity with `http:SecureSocket`)](https://github.com/wso2/product-integrator/issues/830)
 
 ### Fixed
 

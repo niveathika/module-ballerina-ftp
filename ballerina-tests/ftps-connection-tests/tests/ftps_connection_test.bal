@@ -100,6 +100,30 @@ function testFtpsOneWaySslConnection() returns error? {
     check ftpsClient->close();
 }
 
+// `secureSocket.cert` accepts a PEM file path (string) in addition to the
+// `crypto:TrustStore` record — parity with `http:SecureSocket`.
+@test:Config {
+    groups: ["ftps-connection", "explicit"]
+}
+function testFtpsConnectionWithPemCert() returns error? {
+    ftp:Client ftpsClient = check new ({
+        protocol: ftp:FTPS,
+        host: commons:FTP_HOST,
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                cert: commons:SERVER_PEM_PATH,
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    boolean|ftp:Error result = ftpsClient->exists(commons:FTPS_ROOT);
+    test:assertFalse(result is ftp:Error,
+            "Expected successful FTPS connection with PEM cert path");
+    check ftpsClient->close();
+}
+
 // =============================================================================
 // IMPLICIT TLS mode — success cases
 // =============================================================================
@@ -313,6 +337,34 @@ function testFtpsConnectWithWrongKeystorePassword() {
     });
     test:assertTrue(result is ftp:Error,
         "Expected error for wrong keystore password");
+}
+
+// Negative PEM: non-existent PEM path must surface a clear error that names
+// the configured path.
+@test:Config {
+    groups: ["ftps-connection", "negative"]
+}
+function testFtpsConnectWithNonExistentPemCert() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:FTPS,
+        host: commons:FTP_HOST,
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                cert: commons:RESOURCES_PATH + "/nonexistent.pem",
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    test:assertTrue(result is ftp:Error,
+            "Expected error for non-existent PEM cert path");
+    if result is ftp:Error {
+        // Invariant: the configured PEM path is named so the user can locate
+        // the misconfiguration. Exact wording is not frozen.
+        test:assertTrue(result.message().includes("nonexistent.pem"),
+                "Error should name the configured PEM path: " + result.message());
+    }
 }
 
 // =============================================================================

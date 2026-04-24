@@ -63,6 +63,7 @@ public const string SFTP_WRONG_KEY_PATH = RESOURCES_PATH + "/sftp.wrong.private.
 
 public const string KEYSTORE_PATH = RESOURCES_PATH + "/keystore.jks";
 public const string MISMATCHED_KEYSTORE_PATH = RESOURCES_PATH + "/mismatched-keystore.jks";
+public const string SERVER_PEM_PATH = RESOURCES_PATH + "/server.pem";
 
 // ─── Common error messages ────────────────────────────────────────────────────
 

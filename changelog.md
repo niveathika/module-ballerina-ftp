@@ -12,7 +12,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 
 - [Apply the content method's `afterError` action when content binding fails before the handler is invoked](https://github.com/wso2/product-integrator/issues/1161)
-- **Security:** Harden FTPS default TLS validation — hostname verification is now enforced by default (opt-out via `verifyHostName: false`) and the default trust chain now uses the JDK system truststore (`cacerts`) instead of commons-net's permissive validity-only default. Previously, FTPS connections silently accepted any in-date certificate, whether self-signed or with a mismatched CN/SAN. See [wso2/product-integrator#829](https://github.com/wso2/product-integrator/issues/829). **Breaking:** users who relied on the permissive default must now either configure `secureSocket.cert` with a truststore that trusts the server's cert, or (for dev/test only) disable verification via `verifyHostName: false`.
+- [Validate `fileAgeFilter` values at listener startup; reject negative `minAge`/`maxAge` and `minAge` greater than `maxAge`](https://github.com/wso2/product-integrator/issues/1151)
+- [Enforce hostname verification and JDK cacerts trust chain for FTPS connections by default](https://github.com/wso2/product-integrator/issues/829)
 
 ### Changed
 

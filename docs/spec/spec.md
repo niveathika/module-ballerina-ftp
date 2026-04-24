@@ -657,7 +657,9 @@ The `fileNamePattern` field in `@ftp:ServiceConfig` accepts a Java regular expre
 
 #### 4.5.2 File Age Filter
 
-The `fileAgeFilter` in `@ftp:ServiceConfig` allows filtering files based on how recently they were last modified. This is useful for skipping files that are still being written by an upstream process. The filter specifies a minimum age (in seconds); files newer than this threshold are excluded from triggering events.
+The `fileAgeFilter` in `@ftp:ServiceConfig` filters files based on their age. `minAge` (in seconds) skips files younger than the threshold — useful for ignoring files still being written by an upstream process. `maxAge` (in seconds) skips files older than the threshold. Either bound may be set independently; both are optional.
+
+Both values are validated when the listener starts. The listener fails with an `InvalidConfigError` if `minAge` or `maxAge` is negative, or if `minAge` exceeds `maxAge`.
 
 #### 4.5.3 File Dependency Conditions
 

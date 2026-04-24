@@ -143,6 +143,28 @@ public class FtpUtil {
         }
     }
 
+    /**
+     * Validates fileAgeFilter values: rejects negatives and minAge greater than maxAge.
+     *
+     * @param minAge parsed minAge in seconds, or null if unset
+     * @param maxAge parsed maxAge in seconds, or null if unset
+     * @throws FtpInvalidConfigException if either value is negative or minAge exceeds maxAge
+     */
+    public static void validateFileAgeFilter(Double minAge, Double maxAge) throws FtpInvalidConfigException {
+        if (minAge != null && minAge < 0) {
+            throw new FtpInvalidConfigException(
+                    "fileAgeFilter.minAge must be positive or zero (got: " + minAge + ")");
+        }
+        if (maxAge != null && maxAge < 0) {
+            throw new FtpInvalidConfigException(
+                    "fileAgeFilter.maxAge must be positive or zero (got: " + maxAge + ")");
+        }
+        if (minAge != null && maxAge != null && minAge > maxAge) {
+            throw new FtpInvalidConfigException(
+                    "fileAgeFilter.minAge (" + minAge + ") must not exceed fileAgeFilter.maxAge (" + maxAge + ")");
+        }
+    }
+
     public static void extractFileTransferConfiguration(BMap<Object, Object> config,
                                                         Map<String, Object> ftpProperties) {
         // Update to the new constant

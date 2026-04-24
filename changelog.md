@@ -14,6 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Apply the content method's `afterError` action when content binding fails before the handler is invoked](https://github.com/wso2/product-integrator/issues/1161)
 - [Validate `fileAgeFilter` values at listener startup; reject negative `minAge`/`maxAge` and `minAge` greater than `maxAge`](https://github.com/wso2/product-integrator/issues/1151)
 - [Enforce hostname verification and JDK cacerts trust chain for FTPS connections by default](https://github.com/wso2/product-integrator/issues/829)
+- [Improve error messages for SFTP private-key load failures — surface the configured path and a useful hint instead of the Java object identity](https://github.com/ballerina-platform/ballerina-library/issues/8760)
+- [Suppress JSch auto-discovery of default SSH identity files when no privateKey is configured](https://github.com/ballerina-platform/ballerina-library/issues/6769)
+- [Reject empty-string `path` in `privateKey` / `secureSocket.key` / `secureSocket.cert` at client init, matching the listener-side behaviour](https://github.com/ballerina-platform/ballerina-library/issues/8762)
+- [Disambiguate SFTP key-load failures (wrong/missing passphrase, malformed key) from generic connect failures](https://github.com/ballerina-platform/ballerina-library/issues/8763)
+- [Wrap cryptic JVM keystore errors: detect PEM-as-keystore and guard against the literal "null" that appeared when the underlying exception had no message](https://github.com/wso2/product-integrator/issues/831)
 
 ### Changed
 
@@ -33,8 +38,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Fixed
 
 - [Fix SFTP listener blocking on shutdown due to exec channel probe on restricted servers](https://github.com/ballerina-platform/ballerina-library/issues/8708)
-
-### Changed
 
 ## [2.17.1] - 2026-02-26
 

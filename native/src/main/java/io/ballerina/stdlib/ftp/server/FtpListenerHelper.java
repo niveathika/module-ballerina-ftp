@@ -696,17 +696,17 @@ public class FtpListenerHelper {
                 FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PASSWORD, 
                 params);
         
-        if (keyStorePath != null && keyStorePath.isEmpty()) {
+        if (keyStorePath != null && keyStorePath.isBlank()) {
             throw new BallerinaFtpException("Failed to load FTPS Server Keystore: Path cannot be empty");
         }
 
-        String trustStorePath = FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_TRUSTSTORE, 
-                FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH, 
-                FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD, 
+        String trustStorePath = FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_TRUSTSTORE,
+                FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH,
+                FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD,
                 params);
-        
-        if (trustStorePath != null && trustStorePath.isEmpty()) {
-            params.remove(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH);
+
+        if (trustStorePath != null && trustStorePath.isBlank()) {
+            throw new BallerinaFtpException("Failed to load FTPS Server Truststore: Path cannot be empty");
         }
     }
 

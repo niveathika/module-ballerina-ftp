@@ -5,6 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## unreleased
 
+### Fixed
+
+- [Apply the content method's `afterError` action when content binding fails before the handler is invoked](https://github.com/wso2/product-integrator/issues/1161)
+
 ### Changed
 
 - Restructure the Ballerina test suite into per-protocol and per-feature test projects under `ballerina-tests/`, with an isolated advisory-mode project for timing-sensitive (file-age/file-dependency) tests

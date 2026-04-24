@@ -119,6 +119,9 @@ public final class MockFtpServer {
         fileSystem.add(new DirectoryEntry("/home/in/adv-postproc"));
         fileSystem.add(new DirectoryEntry("/home/in/adv-postproc-done"));
         fileSystem.add(new DirectoryEntry("/home/in/adv-postproc-after-error"));
+        fileSystem.add(new DirectoryEntry("/home/in/adv-postproc-corrupt-csv"));
+        fileSystem.add(new DirectoryEntry("/home/in/adv-postproc-corrupt-csv-processed"));
+        fileSystem.add(new DirectoryEntry("/home/in/adv-postproc-corrupt-csv-error"));
 
         // ftp-listener-advanced-tests: onError
         fileSystem.add(new DirectoryEntry("/home/in/adv-onerror"));

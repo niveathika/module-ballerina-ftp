@@ -343,3 +343,102 @@ function testFileAgeFilter_CreationTimeMode_FallsBackToLastModified() returns er
 
     deleteIfExistsAge(ageFtpClient, AGE_MAX_DIR + "/fresh.ctfb");
 }
+
+// ─── TEST: negative minAge → attach returns InvalidConfigError ─────────────────
+
+@test:Config {
+    groups: ["ftp-listener-behaviour", "file-age-filter"]
+}
+function testFileAgeFilter_NegativeMinAge_RejectedAtAttach() returns error? {
+    ftp:Service svc = @ftp:ServiceConfig {
+        path: AGE_MAX_DIR,
+        fileAgeFilter: {minAge: -5.0}
+    }
+    service object {
+        remote function onFileChange(ftp:WatchEvent & readonly event) {}
+    };
+
+    ftp:Listener l = check new ({
+        protocol: ftp:FTP,
+        host: commons:FTP_HOST,
+        port: commons:AUTH_FTP_PORT,
+        auth: {credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD}},
+        pollingInterval: 2
+    });
+
+    error? result = l.attach(svc);
+    check l.immediateStop();
+
+    test:assertTrue(result is ftp:InvalidConfigError,
+        "attach() should return InvalidConfigError for negative minAge");
+    if result is ftp:InvalidConfigError {
+        test:assertTrue(result.message().includes("minAge"),
+            "Error message should mention minAge");
+    }
+}
+
+// ─── TEST: negative maxAge → attach returns InvalidConfigError ─────────────────
+
+@test:Config {
+    groups: ["ftp-listener-behaviour", "file-age-filter"]
+}
+function testFileAgeFilter_NegativeMaxAge_RejectedAtAttach() returns error? {
+    ftp:Service svc = @ftp:ServiceConfig {
+        path: AGE_MAX_DIR,
+        fileAgeFilter: {maxAge: -10.0}
+    }
+    service object {
+        remote function onFileChange(ftp:WatchEvent & readonly event) {}
+    };
+
+    ftp:Listener l = check new ({
+        protocol: ftp:FTP,
+        host: commons:FTP_HOST,
+        port: commons:AUTH_FTP_PORT,
+        auth: {credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD}},
+        pollingInterval: 2
+    });
+
+    error? result = l.attach(svc);
+    check l.immediateStop();
+
+    test:assertTrue(result is ftp:InvalidConfigError,
+        "attach() should return InvalidConfigError for negative maxAge");
+    if result is ftp:InvalidConfigError {
+        test:assertTrue(result.message().includes("maxAge"),
+            "Error message should mention maxAge");
+    }
+}
+
+// ─── TEST: minAge > maxAge → attach returns InvalidConfigError ─────────────────
+
+@test:Config {
+    groups: ["ftp-listener-behaviour", "file-age-filter"]
+}
+function testFileAgeFilter_MinAgeExceedsMaxAge_RejectedAtAttach() returns error? {
+    ftp:Service svc = @ftp:ServiceConfig {
+        path: AGE_MAX_DIR,
+        fileAgeFilter: {minAge: 100.0, maxAge: 10.0}
+    }
+    service object {
+        remote function onFileChange(ftp:WatchEvent & readonly event) {}
+    };
+
+    ftp:Listener l = check new ({
+        protocol: ftp:FTP,
+        host: commons:FTP_HOST,
+        port: commons:AUTH_FTP_PORT,
+        auth: {credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD}},
+        pollingInterval: 2
+    });
+
+    error? result = l.attach(svc);
+    check l.immediateStop();
+
+    test:assertTrue(result is ftp:InvalidConfigError,
+        "attach() should return InvalidConfigError when minAge exceeds maxAge");
+    if result is ftp:InvalidConfigError {
+        test:assertTrue(result.message().includes("must not exceed"),
+            "Error message should explain minAge cannot exceed maxAge");
+    }
+}

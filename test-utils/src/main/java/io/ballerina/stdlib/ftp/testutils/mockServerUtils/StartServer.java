@@ -35,8 +35,9 @@ public final class StartServer {
             MockFtpServer.initAnonymousFtpServer();
             MockFtpServer.initFtpServer();
             MockFtpServer.initSftpServer(args[0]);
-            MockFtpServer.startFtpsServerExplicit(args[0]);  // Port 21214
-            MockFtpServer.startFtpsServerImplicit(args[0]);  // Port 21217
+            MockFtpServer.startFtpsServerExplicit(args[0]);
+            MockFtpServer.startFtpsServerImplicit(args[0]);
+            MockFtpServer.startFtpsServerMismatched(args[0], MockFtpServer.FTPS_MISMATCHED_PORT);
         } catch (Exception ex) {
             logger.error(ex.getMessage());
             System.exit(1);

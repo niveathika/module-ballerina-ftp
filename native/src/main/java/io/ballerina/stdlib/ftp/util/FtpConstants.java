@@ -85,6 +85,7 @@ public class FtpConstants {
     public static final String ENDPOINT_CONFIG_KEYSTORE_PASSWORD = "keystorePassword";
     public static final String ENDPOINT_CONFIG_TRUSTSTORE_PATH = "truststorePath";
     public static final String ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD = "truststorePassword";
+    public static final String ENDPOINT_CONFIG_VERIFY_HOST_NAME = "verifyHostName";
 
     // Keys for extracting data from Ballerina Records
     public static final String SECURE_SOCKET_KEY = "key";

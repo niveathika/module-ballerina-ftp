@@ -20,6 +20,7 @@ package io.ballerina.stdlib.ftp.transport.server;
 
 import io.ballerina.stdlib.ftp.exception.RemoteFileSystemConnectorException;
 import io.ballerina.stdlib.ftp.server.FtpListener;
+import io.ballerina.stdlib.ftp.transport.ftps.HostnameVerifyingFtpsFileProvider;
 import io.ballerina.stdlib.ftp.transport.listener.RemoteFileSystemListener;
 import io.ballerina.stdlib.ftp.transport.message.FileInfo;
 import io.ballerina.stdlib.ftp.transport.message.RemoteFileSystemEvent;
@@ -39,6 +40,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -82,6 +84,10 @@ public class RemoteFileSystemConsumer {
         listeningDirURI = (uri != null) ? uri.toString() : null;
         try {
             this.fileSystemManager = VFS.getManager();
+            if (listeningDirURI != null
+                    && listeningDirURI.toLowerCase(Locale.ROOT).startsWith(FtpConstants.SCHEME_FTPS)) {
+                HostnameVerifyingFtpsFileProvider.ensureRegistered(this.fileSystemManager);
+            }
             this.fileSystemOptions = FileTransportUtils.attachFileSystemOptions(fileProperties);
             listeningDir = fileSystemManager.resolveFile(listeningDirURI, fileSystemOptions);
             FileType fileType = listeningDir.getType();

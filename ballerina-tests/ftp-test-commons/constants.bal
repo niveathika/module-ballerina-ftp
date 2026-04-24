@@ -25,6 +25,7 @@ public const int SFTP_PORT = 21213;
 public const int FTPS_EXPLICIT_PORT = 21214;
 public const int SLOW_FTP_PORT = 21215;
 public const int FTPS_IMPLICIT_PORT = 21217;
+public const int FTPS_MISMATCHED_PORT = 21220;
 
 // ─── FTP credentials ──────────────────────────────────────────────────────────
 
@@ -58,9 +59,10 @@ public const string SFTP_PRIVATE_KEY_PATH = RESOURCES_PATH + "/sftp.private.key"
 public const string SFTP_PASSWORDLESS_KEY_PATH = RESOURCES_PATH + "/sftp.passwordless.private.key";
 public const string SFTP_WRONG_KEY_PATH = RESOURCES_PATH + "/sftp.wrong.private.key";
 
-// ─── FTPS keystore path ───────────────────────────────────────────────────────
+// ─── FTPS keystore paths ──────────────────────────────────────────────────────
 
 public const string KEYSTORE_PATH = RESOURCES_PATH + "/keystore.jks";
+public const string MISMATCHED_KEYSTORE_PATH = RESOURCES_PATH + "/mismatched-keystore.jks";
 
 // ─── Common error messages ────────────────────────────────────────────────────
 

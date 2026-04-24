@@ -188,7 +188,7 @@ task waitForMockServers {
     doLast {
         def host = "127.0.0.1"
         // FTP ports that must respond with a 220 banner
-        def ftpPorts = [21210, 21212, 21214]
+        def ftpPorts = [21210, 21212, 21214, 21220]
         // TCP-only ports (SFTP SSH, implicit FTPS — no plaintext 220 banner)
         def tcpPorts = [21213, 21217]
 

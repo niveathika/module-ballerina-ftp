@@ -68,6 +68,9 @@ public type SecureSocket record {|
     FtpsMode mode = EXPLICIT;
     # Data channel protection level. Controls encryption of the data channel used for file transfers.
     FtpsDataChannelProtection dataChannelProtection = PRIVATE;
+    # Verify that the server certificate's CN/SAN matches the host being connected to. Defaults to `true`.
+    # Set to `false` only for development or testing with self-signed certificates whose identity does not match the host.
+    boolean verifyHostName = true;
 |};
 
 # Basic authentication credentials for connecting to FTP/FTPS servers using username and password.

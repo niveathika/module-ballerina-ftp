@@ -26,6 +26,7 @@ The conforming implementation of the specification is released and included in t
    * 3.1 [Initializing the Client](#31-initializing-the-client)
       * 3.1.1 [Insecure Client](#311-insecure-client)
       * 3.1.2 [Secure Client](#312-secure-client)
+      * 3.1.3 [Secure FTPS Client](#313-secure-ftps-client)
    * 3.2 [Writing Files](#32-writing-files)
       * 3.2.1 [Write Operations](#321-write-operations)
       * 3.2.2 [Streaming Writes](#322-streaming-writes)
@@ -149,6 +150,35 @@ ftp:Client sftpClient = check new ({
         preferredMethods: [ftp:PUBLICKEY]
     },
     userDirIsRoot: true
+});
+```
+
+#### 3.1.3 Secure FTPS Client
+
+A secure FTPS client is initialized by specifying the `FTPS` protocol. Authentication details are optional — when `secureSocket` is omitted the client uses the JDK's default system truststore (`cacerts`) for chain validation and verifies the server hostname against the certificate. The optional `secureSocket` record controls SSL/TLS behaviour:
+
+- `key` — Keystore for client-side (mTLS) authentication.
+- `cert` — Truststore for validating the server certificate chain. When omitted, the JDK's default system truststore is used.
+- `mode` — `EXPLICIT` (default; start plain, upgrade via `AUTH TLS`) or `IMPLICIT` (TLS from connect).
+- `dataChannelProtection` — `PRIVATE` (default), `SAFE`, `CONFIDENTIAL`, or `CLEAR`.
+- `verifyHostName` — Whether to verify that the server certificate's CN/SAN matches the host being connected to. Defaults to `true`. Set to `false` only for development or testing when a trusted certificate's identity does not match the host. Self-signed or private-CA certificates must still be trusted via `secureSocket.cert` or the default truststore.
+
+Connection attempts fail at the TLS handshake with an `ftp:Error` when the server certificate is not trusted by the configured truststore (or the JDK default), or when `verifyHostName` is `true` and the certificate identity does not match the connect host.
+
+###### Example: FTPS Client
+
+```ballerina
+ftp:Client ftpsClient = check new ({
+    protocol: ftp:FTPS,
+    host: "ftps.example.com",
+    port: 21,
+    auth: {
+        credentials: {username: "user", password: "pass"},
+        secureSocket: {
+            cert: {path: "/path/to/truststore.p12", password: "changeit"},
+            mode: ftp:EXPLICIT
+        }
+    }
 });
 ```
 

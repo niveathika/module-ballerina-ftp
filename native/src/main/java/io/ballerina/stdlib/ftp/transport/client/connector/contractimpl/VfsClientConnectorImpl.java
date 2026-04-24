@@ -26,6 +26,7 @@ import io.ballerina.stdlib.ftp.exception.FtpServiceUnavailableException;
 import io.ballerina.stdlib.ftp.exception.RemoteFileSystemConnectorException;
 import io.ballerina.stdlib.ftp.transport.client.connector.contract.FtpAction;
 import io.ballerina.stdlib.ftp.transport.client.connector.contract.VfsClientConnector;
+import io.ballerina.stdlib.ftp.transport.ftps.HostnameVerifyingFtpsFileProvider;
 import io.ballerina.stdlib.ftp.transport.listener.RemoteFileSystemListener;
 import io.ballerina.stdlib.ftp.transport.message.FileInfo;
 import io.ballerina.stdlib.ftp.transport.message.RemoteFileSystemMessage;
@@ -47,6 +48,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static io.ballerina.stdlib.ftp.transport.server.util.FileTransportUtils.maskUrlPassword;
@@ -74,6 +76,9 @@ public class VfsClientConnectorImpl implements VfsClientConnector {
             fsManager = VFS.getManager();
             Object uri = connectorConfig.get(FtpConstants.URI);
             fileURI = (uri != null) ? uri.toString() : null;
+            if (fileURI != null && fileURI.toLowerCase(Locale.ROOT).startsWith(FtpConstants.SCHEME_FTPS)) {
+                HostnameVerifyingFtpsFileProvider.ensureRegistered(fsManager);
+            }
             path = fsManager.resolveFile(fileURI, opts);
         } catch (FileSystemException e) {
             String safeUri = maskUrlPassword(fileURI);

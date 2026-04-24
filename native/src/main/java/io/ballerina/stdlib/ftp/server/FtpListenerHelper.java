@@ -498,7 +498,8 @@ public class FtpListenerHelper {
     /**
      * Parses file age filter into ServiceConfiguration.Builder using the shared extraction logic.
      */
-    private static void parseFileAgeFilter(BMap<BString, Object> ageFilter, ServiceConfiguration.Builder builder) {
+    private static void parseFileAgeFilter(BMap<BString, Object> ageFilter, ServiceConfiguration.Builder builder)
+            throws FtpInvalidConfigException {
         Map<String, Object> ageParams = new HashMap<>();
         addAgeFilterValues(ageFilter, ageParams);
 
@@ -721,7 +722,8 @@ public class FtpListenerHelper {
         extractProxyConfiguration(serviceEndpointConfig, params);
     }
 
-    private static void addFileAgeFilterParams(BMap serviceEndpointConfig, Map<String, Object> params) {
+    private static void addFileAgeFilterParams(BMap serviceEndpointConfig, Map<String, Object> params)
+            throws FtpInvalidConfigException {
         BMap fileAgeFilter = serviceEndpointConfig.getMapValue(
                 StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_FILE_AGE_FILTER));
         if (fileAgeFilter != null) {
@@ -733,13 +735,18 @@ public class FtpListenerHelper {
      * Extracts minAge, maxAge and ageCalculationMode from a fileAgeFilter record into params.
      * Shared by both listener-level and service-level config processing.
      */
-    private static void addAgeFilterValues(BMap ageFilter, Map<String, Object> params) {
+    private static void addAgeFilterValues(BMap ageFilter, Map<String, Object> params)
+            throws FtpInvalidConfigException {
         Object minAgeObj = ageFilter.get(StringUtils.fromString(FtpConstants.FILE_AGE_FILTER_MIN_AGE));
+        Object maxAgeObj = ageFilter.get(StringUtils.fromString(FtpConstants.FILE_AGE_FILTER_MAX_AGE));
+
+        Double minAge = (minAgeObj != null) ? ((BDecimal) minAgeObj).floatValue() : null;
+        Double maxAge = (maxAgeObj != null) ? ((BDecimal) maxAgeObj).floatValue() : null;
+        FtpUtil.validateFileAgeFilter(minAge, maxAge);
+
         if (minAgeObj != null) {
             params.put(FtpConstants.FILE_AGE_FILTER_MIN_AGE, String.valueOf(minAgeObj));
         }
-
-        Object maxAgeObj = ageFilter.get(StringUtils.fromString(FtpConstants.FILE_AGE_FILTER_MAX_AGE));
         if (maxAgeObj != null) {
             params.put(FtpConstants.FILE_AGE_FILTER_MAX_AGE, String.valueOf(maxAgeObj));
         }

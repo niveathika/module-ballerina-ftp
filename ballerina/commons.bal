@@ -62,8 +62,11 @@ public type PrivateKey record {|
 public type SecureSocket record {|
     # Keystore configuration for client authentication
     crypto:KeyStore key?;
-    # Certificate configuration for server certificate validation
-    crypto:TrustStore cert?;
+    # Certificate configuration for server certificate validation. Accepts either
+    # a file path string pointing at a PEM certificate (in which case the cert is
+    # loaded into an in-memory truststore) or a `crypto:TrustStore` record for
+    # JKS/PKCS12 truststores.
+    string|crypto:TrustStore cert?;
     # FTPS connection mode.
     FtpsMode mode = EXPLICIT;
     # Data channel protection level. Controls encryption of the data channel used for file transfers.

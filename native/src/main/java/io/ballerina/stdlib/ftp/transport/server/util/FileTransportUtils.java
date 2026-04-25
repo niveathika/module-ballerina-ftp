@@ -251,18 +251,28 @@ public final class FileTransportUtils {
             }
 
             // 2. Configure TrustStore (Server Validation).
-            //    Always install a TrustManager on the builder — user's truststore if
-            //    supplied, otherwise the JDK default (cacerts). Without this,
-            //    FtpsFileSystemConfigBuilder.getTrustManager() falls back to commons-net's
-            //    TrustManagerUtils.getValidateServerCertificateTrustManager(), which only
-            //    checks certificate validity (expiration) and skips trust chain validation.
+            //    The `cert` field accepts either a JKS/PKCS12 keystore record or
+            //    a PEM file path (string). Always install a TrustManager on the
+            //    builder — user's truststore if supplied, otherwise the JDK
+            //    default (cacerts). Without this, FtpsFileSystemConfigBuilder's
+            //    default falls back to commons-net's
+            //    TrustManagerUtils.getValidateServerCertificateTrustManager(),
+            //    which only checks certificate validity (expiration) and skips
+            //    trust chain validation.
             Object truststorePathObj = options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH);
             TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
             if (truststorePathObj != null) {
                 String trustStorePath = (String) truststorePathObj;
-                Object passwordObj = options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD);
-                String password = (passwordObj != null) ? passwordObj.toString() : null;
-                KeyStore trustStore = FtpUtil.loadKeyStore(trustStorePath, password);
+                boolean isPem = Boolean.parseBoolean(String.valueOf(
+                        options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_IS_PEM)));
+                KeyStore trustStore;
+                if (isPem) {
+                    trustStore = FtpUtil.loadTrustStoreFromPem(trustStorePath);
+                } else {
+                    Object passwordObj = options.get(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD);
+                    String password = (passwordObj != null) ? passwordObj.toString() : null;
+                    trustStore = FtpUtil.loadKeyStore(trustStorePath, password);
+                }
                 tmf.init(trustStore);
             } else {
                 tmf.init((KeyStore) null);

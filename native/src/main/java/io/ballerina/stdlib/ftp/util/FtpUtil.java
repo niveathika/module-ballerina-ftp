@@ -290,21 +290,97 @@ public class FtpUtil {
     public static String extractAndConfigureStore(BMap secureSocket, String storeKey,
                                                   String pathConfigKey, String passwordConfigKey,
                                                   Map<String, Object> config) {
-        // This CAN be null because 'crypto:KeyStore key?' is optional in SecureSocket
-        BMap storeRecord = secureSocket.getMapValue(StringUtils.fromString(storeKey));
-
-        if (storeRecord == null) {
+        // Called for both `key` (always a `crypto:KeyStore?` record) and `cert`
+        // (typed `string|crypto:TrustStore?` — a string is a PEM path, a record
+        // is a JKS/PKCS12 TrustStore). Dispatch on the runtime value type; only
+        // `cert` ever takes the string branch in practice.
+        Object rawValue = secureSocket.get(StringUtils.fromString(storeKey));
+        if (rawValue == null) {
             return null;
         }
 
-        // 'path' and 'password' are mandatory in crypto:KeyStore/TrustStore, so they are guaranteed to exist.
-        String path = storeRecord.getStringValue(StringUtils.fromString("path")).getValue();
-        String password = storeRecord.getStringValue(StringUtils.fromString("password")).getValue();
+        if (rawValue instanceof BString pemPath) {
+            String path = pemPath.getValue();
+            config.put(pathConfigKey, path);
+            // Signal to the TLS configurator that this path is a PEM, not a keystore.
+            // Only meaningful for the truststore (`cert`) field.
+            if (FtpConstants.SECURE_SOCKET_TRUSTSTORE.equals(storeKey)) {
+                config.put(FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_IS_PEM, "true");
+            }
+            return path;
+        }
 
-        config.put(pathConfigKey, path);
-        config.put(passwordConfigKey, password);
+        if (rawValue instanceof BMap<?, ?> rawMap) {
+            @SuppressWarnings("unchecked")
+            BMap<BString, Object> storeRecord = (BMap<BString, Object>) rawMap;
+            String path = storeRecord.getStringValue(
+                    StringUtils.fromString(FtpConstants.KEYSTORE_PATH_KEY)).getValue();
+            String password = storeRecord.getStringValue(
+                    StringUtils.fromString(FtpConstants.KEYSTORE_PASSWORD_KEY)).getValue();
+            config.put(pathConfigKey, path);
+            config.put(passwordConfigKey, password);
+            return path;
+        }
 
-        return path;
+        return null;
+    }
+
+    /**
+     * Loads one or more X.509 certificates from a PEM file into an in-memory
+     * KeyStore of the JVM default type (typically PKCS12 on JDK 9+). Used when
+     * the user supplies {@code secureSocket.cert} as a string file path instead
+     * of a {@code crypto:TrustStore} record (issue #830).
+     *
+     * @param pemPath path to a PEM-encoded certificate file
+     * @return an in-memory KeyStore containing every certificate read from the file
+     * @throws BallerinaFtpException if the path is invalid or the file is not a
+     *         readable PEM certificate
+     */
+    public static KeyStore loadTrustStoreFromPem(String pemPath) throws BallerinaFtpException {
+        if (pemPath == null || pemPath.isBlank()) {
+            throw new BallerinaFtpException("TrustStore PEM path cannot be empty.");
+        }
+        File pemFile = new File(pemPath);
+        if (!pemFile.exists()) {
+            throw new BallerinaFtpException("TrustStore PEM file does not exist: " + pemPath);
+        }
+        if (pemFile.isDirectory()) {
+            throw new BallerinaFtpException(
+                    "TrustStore PEM path is a directory, expected a file: " + pemPath);
+        }
+        if (!pemFile.canRead()) {
+            throw new BallerinaFtpException("TrustStore PEM file is not readable: " + pemPath);
+        }
+        if (pemFile.length() == 0) {
+            throw new BallerinaFtpException("TrustStore PEM file is empty: " + pemPath);
+        }
+        try {
+            java.security.cert.CertificateFactory cf =
+                    java.security.cert.CertificateFactory.getInstance(FtpConstants.X509_CERTIFICATE_TYPE);
+            KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+            ks.load(null, null);
+            int index = 0;
+            try (FileInputStream fis = new FileInputStream(new File(pemPath))) {
+                java.util.Collection<? extends java.security.cert.Certificate> certs =
+                        cf.generateCertificates(fis);
+                if (certs.isEmpty()) {
+                    throw new BallerinaFtpException("PEM file contains no certificates: " + pemPath);
+                }
+                for (java.security.cert.Certificate cert : certs) {
+                    ks.setCertificateEntry(FtpConstants.PEM_CERT_ALIAS_PREFIX + index++, cert);
+                }
+            }
+            return ks;
+        } catch (BallerinaFtpException e) {
+            throw e;
+        } catch (Exception e) {
+            String detail = e.getMessage();
+            if (detail == null || detail.isBlank()) {
+                detail = e.getClass().getSimpleName();
+            }
+            throw new BallerinaFtpException("Failed to load PEM certificate from path: "
+                    + pemPath + ". " + detail, e);
+        }
     }
 
     public static String createUrl(BObject clientConnector, String filePath) throws BallerinaFtpException {

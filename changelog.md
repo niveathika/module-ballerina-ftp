@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Apply the content method's `afterError` action when content binding fails before the handler is invoked](https://github.com/wso2/product-integrator/issues/1161)
 - [Validate `fileAgeFilter` values at listener startup; reject negative `minAge`/`maxAge` and `minAge` greater than `maxAge`](https://github.com/wso2/product-integrator/issues/1151)
 - [Enforce hostname verification and JDK cacerts trust chain for FTPS connections by default](https://github.com/wso2/product-integrator/issues/829)
+- [Clarify the FTP listener "path is not a folder" error: name the FTP listener (instead of the unrelated "File system server connector") and include the configured remote path](https://github.com/wso2/product-integrator/issues/1139)
 
 ### Changed
 

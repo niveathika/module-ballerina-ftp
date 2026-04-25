@@ -257,12 +257,15 @@ public class FtpClient {
             return validationError;
         }
         
-        configurePrivateKey(auth, ftpConfig);
-        
-        if (auth.getMapValue(StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_SECURE_SOCKET)) != null 
+        Object pkError = configurePrivateKey(auth, ftpConfig);
+        if (pkError != null) {
+            return pkError;
+        }
+
+        if (auth.getMapValue(StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_SECURE_SOCKET)) != null
                 && protocol.equals(FtpConstants.SCHEME_FTPS)) {
             Object ftpsError = configureFtpsSecureSocket(
-                    auth.getMapValue(StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_SECURE_SOCKET)), 
+                    auth.getMapValue(StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_SECURE_SOCKET)),
                     ftpConfig);
             if (ftpsError != null) {
                 return ftpsError;
@@ -294,23 +297,28 @@ public class FtpClient {
         return null;
     }
 
-    private static void configurePrivateKey(BMap auth, Map<String, Object> ftpConfig) {
+    private static Object configurePrivateKey(BMap auth, Map<String, Object> ftpConfig) {
         final BMap privateKey = auth.getMapValue(StringUtils.fromString(
                 FtpConstants.ENDPOINT_CONFIG_PRIVATE_KEY));
-        
+
         if (privateKey == null) {
-            return;
+            return null;
         }
-        
+
         final BString privateKeyPath = privateKey.getStringValue(StringUtils.fromString(
                 FtpConstants.ENDPOINT_CONFIG_KEY_PATH));
+        if (privateKeyPath == null || privateKeyPath.getValue().isBlank()) {
+            return FtpUtil.createError("privateKey path cannot be empty.",
+                    InvalidConfigError.errorType());
+        }
         ftpConfig.put(FtpConstants.IDENTITY, privateKeyPath.getValue());
-        
+
         final BString privateKeyPassword = privateKey.getStringValue(StringUtils.fromString(
                 FtpConstants.ENDPOINT_CONFIG_PASS_KEY));
         if (privateKeyPassword != null && !privateKeyPassword.getValue().isEmpty()) {
             ftpConfig.put(FtpConstants.IDENTITY_PASS_PHRASE, privateKeyPassword.getValue());
         }
+        return null;
     }
 
     private static void applyDefaultFtpConfig(BMap<Object, Object> config, Map<String, Object> ftpConfig) {
@@ -390,15 +398,23 @@ public class FtpClient {
                 StringUtils.fromString(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOST_NAME));
         ftpConfig.put(FtpConstants.ENDPOINT_CONFIG_VERIFY_HOST_NAME, verifyHostName);
 
-        FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY,
+        String keyStorePath = FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_KEY,
                 FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PATH,
                 FtpConstants.ENDPOINT_CONFIG_KEYSTORE_PASSWORD,
                 ftpConfig);
+        if (keyStorePath != null && keyStorePath.isBlank()) {
+            return FtpUtil.createError("secureSocket.key.path cannot be empty.",
+                    InvalidConfigError.errorType());
+        }
 
-        FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_TRUSTSTORE,
+        String trustStorePath = FtpUtil.extractAndConfigureStore(secureSocket, FtpConstants.SECURE_SOCKET_TRUSTSTORE,
                 FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PATH,
                 FtpConstants.ENDPOINT_CONFIG_TRUSTSTORE_PASSWORD,
                 ftpConfig);
+        if (trustStorePath != null && trustStorePath.isBlank()) {
+            return FtpUtil.createError("secureSocket.cert.path cannot be empty.",
+                    InvalidConfigError.errorType());
+        }
 
         return null;
     }

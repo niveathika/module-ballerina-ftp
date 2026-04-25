@@ -340,7 +340,8 @@ function testSftpConnectWithUnregisteredKey() {
     }
 }
 
-// A key path that does not exist on disk.
+// A key path that does not exist on disk: pre-validation names the path and
+// the reason instead of letting JSch leak an IdentityInfo@<hash> toString.
 @test:Config {
     groups: ["sftp-connection", "negative"]
 }
@@ -357,8 +358,94 @@ function testSftpConnectWithInvalidKeyPath() {
     test:assertTrue(result is ftp:Error,
             "Expected error for non-existent SFTP key path");
     if result is ftp:Error {
-        test:assertTrue(result.message().startsWith("Error while connecting to the FTP server with URL: "),
-                "Unexpected error message: " + result.message());
+        // Invariants (not exact phrasing):
+        //   1. The configured path appears so the user can see what was misconfigured.
+        //   2. JSch's "IdentityInfo@<hash>" object identity does not leak
+        //      (ballerina-library#8760).
+        test:assertTrue(result.message().includes("tests/resources/nonexistent.private.key"),
+                "Error should name the configured key path: " + result.message());
+        test:assertFalse(result.message().includes("IdentityInfo@"),
+                "Error must not leak the JSch IdentityInfo object identity: "
+                + result.message());
+    }
+}
+
+// An empty string privateKey.path must be rejected at client init with a
+// clear InvalidConfigError, not slipped into VFS where it turns into a
+// cryptic IdentityInfo failure.
+@test:Config {
+    groups: ["sftp-connection", "negative"]
+}
+function testSftpConnectWithEmptyKeyPath() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:SFTP,
+        host: commons:FTP_HOST,
+        port: commons:SFTP_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            privateKey: {path: "", password: "changeit"}
+        }
+    });
+    // Invariant: rejected at client init as a config error, not smuggled into VFS
+    // where it turns into a cryptic IdentityInfo failure. Exact wording is not
+    // part of the contract.
+    test:assertTrue(result is ftp:InvalidConfigError,
+            "Expected InvalidConfigError for empty SFTP key path");
+}
+
+// A key path pointing at a directory must be rejected up front.
+@test:Config {
+    groups: ["sftp-connection", "negative"]
+}
+function testSftpConnectWithKeyPathIsDirectory() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:SFTP,
+        host: commons:FTP_HOST,
+        port: commons:SFTP_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            privateKey: {path: commons:RESOURCES_PATH, password: "changeit"}
+        }
+    });
+    test:assertTrue(result is ftp:Error,
+            "Expected error for SFTP key path that is a directory");
+    if result is ftp:Error {
+        // Invariant: the configured path is named so the user can see what they
+        // pointed at. Exact wording (directory / not a regular file / etc.) is
+        // not frozen.
+        test:assertTrue(result.message().includes(commons:RESOURCES_PATH),
+                "Error should name the configured key path: " + result.message());
+    }
+}
+
+// A public-key file passed where a private key is expected: passes the
+// regular-file pre-validation and fails inside JSch. The rewrapped message
+// names the path and guides the user.
+@test:Config {
+    groups: ["sftp-connection", "negative"]
+}
+function testSftpConnectWithPublicKeyAsPrivate() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:SFTP,
+        host: commons:FTP_HOST,
+        port: commons:SFTP_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            privateKey: {path: commons:RESOURCES_PATH + "/sftp.public.key"}
+        }
+    });
+    test:assertTrue(result is ftp:Error,
+            "Expected error for public-key passed as private key");
+    if result is ftp:Error {
+        // Invariants (not exact phrasing):
+        //   1. The configured path is named.
+        //   2. JSch's "IdentityInfo@<hash>" toString does not leak
+        //      (ballerina-library#8760, #8763).
+        test:assertTrue(result.message().includes("sftp.public.key"),
+                "Error should name the configured key path: " + result.message());
+        test:assertFalse(result.message().includes("IdentityInfo@"),
+                "Error must not leak the JSch IdentityInfo object identity: "
+                + result.message());
     }
 }
 

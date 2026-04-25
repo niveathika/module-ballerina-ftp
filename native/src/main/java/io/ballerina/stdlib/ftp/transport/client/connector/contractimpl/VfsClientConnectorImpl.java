@@ -18,6 +18,7 @@
 
 package io.ballerina.stdlib.ftp.transport.client.connector.contractimpl;
 
+import com.jcraft.jsch.JSchException;
 import io.ballerina.stdlib.ftp.exception.BallerinaFtpException;
 import io.ballerina.stdlib.ftp.exception.FtpConnectionException;
 import io.ballerina.stdlib.ftp.exception.FtpFileAlreadyExistsException;
@@ -82,8 +83,34 @@ public class VfsClientConnectorImpl implements VfsClientConnector {
             path = fsManager.resolveFile(fileURI, opts);
         } catch (FileSystemException e) {
             String safeUri = maskUrlPassword(fileURI);
-            String rootCauseMessage = (e.getCause() != null && e.getCause().getMessage() != null)
-                    ? e.getCause().getMessage() : e.getMessage();
+            Throwable cause = e.getCause();
+            String rootCauseMessage = (cause != null && cause.getMessage() != null)
+                    ? cause.getMessage() : e.getMessage();
+
+            // Apache Commons VFS surfaces SFTP key-load failures as a nested
+            // FileSystemException wrapping a JSchException, with a message of the
+            // form "Could not load private key from "IdentityInfo@<hash>"" (the
+            // configured path is lost). Walk the cause chain and substitute a
+            // clear message that names the path and the reason. Covers explicit
+            // bad paths, wrong/missing passphrase, malformed keys, and the
+            // auto-loaded ~/.ssh/id_rsa case when no privateKey is set.
+            JSchException jschCause = findCause(e, JSchException.class);
+            if (jschCause != null) {
+                Object identity = connectorConfig.get(FtpConstants.IDENTITY);
+                String keyPath = identity != null ? identity.toString() : "<auto-discovered>";
+                // Null-guard the JSchException message so the user-facing string never
+                // concatenates a literal "null" — same class of bug this PR addresses
+                // elsewhere.
+                String jschReason = jschCause.getMessage();
+                if (jschReason == null || jschReason.isBlank()) {
+                    jschReason = "Unable to load or use the private key.";
+                }
+                rootCauseMessage = "SFTP key authentication failed for private key \""
+                        + keyPath + "\". " + jschReason
+                        + " Verify the key file is a valid private key and the passphrase"
+                        + " (if any) is correct.";
+            }
+
             String errorMessage = "Error while connecting to the FTP server with URL: "
                     + (safeUri != null ? safeUri : "") + ". " + rootCauseMessage;
 
@@ -91,11 +118,22 @@ public class VfsClientConnectorImpl implements VfsClientConnector {
             String fullMessage = FtpErrorCodeAnalyzer.getFullErrorMessage(e);
             if (FtpErrorCodeAnalyzer.isServiceUnavailable(fullMessage)) {
                 int ftpCode = FtpErrorCodeAnalyzer.extractFtpCodeFromException(e).orElse(0);
-                throw new FtpServiceUnavailableException(errorMessage, ftpCode, e.getCause());
+                throw new FtpServiceUnavailableException(errorMessage, ftpCode, cause);
             }
 
-            throw new FtpConnectionException(errorMessage, e.getCause());
+            throw new FtpConnectionException(errorMessage, cause);
         }
+    }
+
+    private static <T extends Throwable> T findCause(Throwable start, Class<T> target) {
+        Throwable t = start;
+        while (t != null) {
+            if (target.isInstance(t)) {
+                return target.cast(t);
+            }
+            t = t.getCause();
+        }
+        return null;
     }
 
     public void addListener(RemoteFileSystemListener listener) {

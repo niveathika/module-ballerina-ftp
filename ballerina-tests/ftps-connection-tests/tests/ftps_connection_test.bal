@@ -339,6 +339,122 @@ function testFtpsConnectWithWrongKeystorePassword() {
         "Expected error for wrong keystore password");
 }
 
+// An empty string keystore path must be rejected at client init, matching
+// the listener-side validation.
+@test:Config {
+    groups: ["ftps-connection", "negative"]
+}
+function testFtpsConnectWithEmptyKeystorePath() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:FTPS,
+        host: commons:FTP_HOST,
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                key: {path: "", password: "changeit"},
+                cert: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    // Invariant: rejected at client init as a config error, not propagated as a
+    // connection failure. Exact wording is not part of the contract.
+    test:assertTrue(result is ftp:InvalidConfigError,
+            "Expected InvalidConfigError for empty keystore path");
+}
+
+// An empty string truststore path must be rejected at client init.
+@test:Config {
+    groups: ["ftps-connection", "negative"]
+}
+function testFtpsConnectWithEmptyTruststorePath() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:FTPS,
+        host: commons:FTP_HOST,
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                key: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                cert: {path: "", password: "changeit"},
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    test:assertTrue(result is ftp:InvalidConfigError,
+            "Expected InvalidConfigError for empty truststore path");
+}
+
+// An empty (zero-byte) keystore file used to surface a message ending in
+// literal "null" (getMessage() returned null from the JVM). Pre-validation
+// now catches this up front with a clear reason.
+@test:Config {
+    groups: ["ftps-connection", "negative"]
+}
+function testFtpsConnectWithEmptyKeystoreFile() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:FTPS,
+        host: commons:FTP_HOST,
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                key: {path: commons:RESOURCES_PATH + "/datafiles/empty.jks", password: "changeit"},
+                cert: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    test:assertTrue(result is ftp:Error,
+            "Expected error for empty (0-byte) keystore file");
+    if result is ftp:Error {
+        // Invariants (not exact phrasing):
+        //   1. The configured path is named so the user can find the bad file.
+        //   2. The message is not the bare "... null" that the JVM used to surface
+        //      when the wrapped exception had no message (product-integrator#831).
+        test:assertTrue(result.message().includes("empty.jks"),
+                "Error should name the configured path: " + result.message());
+        test:assertFalse(result.message().endsWith(". null") || result.message().endsWith(": null"),
+                "Error must not end with a literal 'null': " + result.message());
+    }
+}
+
+// A PEM file passed where a JKS keystore is expected used to leak the
+// cryptic "toDerInputStream rejects tag type 45". File-header sniffing
+// now surfaces a clear PEM-specific error.
+@test:Config {
+    groups: ["ftps-connection", "negative"]
+}
+function testFtpsConnectWithPemAsKeystore() {
+    ftp:Client|ftp:Error result = new ({
+        protocol: ftp:FTPS,
+        host: commons:FTP_HOST,
+        port: commons:FTPS_EXPLICIT_PORT,
+        auth: {
+            credentials: {username: commons:FTP_USERNAME, password: commons:FTP_PASSWORD},
+            secureSocket: {
+                key: {path: commons:RESOURCES_PATH + "/sftp.passwordless.private.key", password: "changeit"},
+                cert: {path: commons:KEYSTORE_PATH, password: "changeit"},
+                mode: ftp:EXPLICIT
+            }
+        }
+    });
+    test:assertTrue(result is ftp:Error,
+            "Expected error for PEM file passed as keystore");
+    if result is ftp:Error {
+        // Invariants (not exact phrasing):
+        //   1. The configured path is named.
+        //   2. The raw JVM "toDerInputStream rejects tag type" message must not
+        //      leak through — either the PEM pre-sniff catches it or the generic
+        //      fallback produces something clean.
+        test:assertTrue(result.message().includes("sftp.passwordless.private.key"),
+                "Error should name the configured path: " + result.message());
+        test:assertFalse(result.message().includes("toDerInputStream rejects tag type"),
+                "Error must not leak the raw JVM keystore-parse message: " + result.message());
+    }
+}
+
 // Negative PEM: non-existent PEM path must surface a clear error that names
 // the configured path.
 @test:Config {

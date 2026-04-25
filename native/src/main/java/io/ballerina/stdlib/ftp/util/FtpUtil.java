@@ -799,35 +799,97 @@ public class FtpUtil {
     }
 
     /**
+     * Verifies that {@code path} points at a regular, non-empty, readable file.
+     * Used to surface a clear error before VFS or KeyStore loaders raise cryptic
+     * downstream exceptions for missing/empty/directory/unreadable inputs.
+     * Rejects non-regular files (device nodes, pipes, symlinks to directories).
+     */
+    public static void validateRegularFile(String purpose, String path) throws BallerinaFtpException {
+        if (path == null || path.isBlank()) {
+            throw new BallerinaFtpException(purpose + " path cannot be empty.");
+        }
+        File f = new File(path);
+        if (!f.exists()) {
+            throw new BallerinaFtpException(purpose + " file does not exist: " + path);
+        }
+        if (f.isDirectory()) {
+            throw new BallerinaFtpException(purpose + " path is a directory, expected a file: " + path);
+        }
+        if (!f.isFile()) {
+            throw new BallerinaFtpException(purpose + " path is not a regular file: " + path);
+        }
+        if (!f.canRead()) {
+            throw new BallerinaFtpException(purpose + " file is not readable: " + path);
+        }
+        if (f.length() == 0) {
+            throw new BallerinaFtpException(purpose + " file is empty: " + path);
+        }
+    }
+
+    /**
      * Loads a Java KeyStore from a file path and password.
-     * 
-     * @param path The file path to the KeyStore
+     *
+     * <p>A {@code null} path is treated as "no keystore configured" and returns
+     * {@code null} so callers can initialize a TrustManagerFactory with JVM
+     * default trust. Any non-null path — including the empty string — is run
+     * through {@link #validateRegularFile(String, String)} so empty / missing /
+     * directory / unreadable / zero-byte inputs fail up front instead of
+     * bypassing validation.</p>
+     *
+     * @param path The file path to the KeyStore, or {@code null}
      * @param password The password for the KeyStore
-     * @return The loaded java.security.KeyStore object
+     * @return The loaded {@link KeyStore}, or {@code null} if {@code path} is null
      * @throws BallerinaFtpException If loading fails
      */
     public static KeyStore loadKeyStore(String path, String password) throws BallerinaFtpException {
-        if (path == null || path.isEmpty()) {
+        if (path == null) {
             return null;
         }
         try {
-            // JKS extension checking
+            validateRegularFile("KeyStore", path);
+        } catch (BallerinaFtpException e) {
+            // Re-wrap to preserve the "Failed to load KeyStore from path: ..." prefix
+            // expected by existing callers and tests.
+            throw new BallerinaFtpException("Failed to load KeyStore from path: " + path
+                    + ". " + e.getMessage(), e);
+        }
+        try {
             String type = KeyStore.getDefaultType();
-            if (path.toLowerCase().endsWith(".jks")) {
+            String lower = path.toLowerCase(java.util.Locale.ROOT);
+            if (lower.endsWith(".jks")) {
                 type = "JKS";
-            } else if (path.toLowerCase().endsWith(".p12") || path.toLowerCase().endsWith(".pfx")) {
+            } else if (lower.endsWith(".p12") || lower.endsWith(".pfx")) {
                 type = "PKCS12";
+            }
+            // Sniff the first 16 bytes to catch the common "user passed a PEM" case
+            // before the JDK throws "toDerInputStream rejects tag type 45".
+            byte[] header = new byte[16];
+            try (FileInputStream sniff = new FileInputStream(new File(path))) {
+                int read = sniff.read(header);
+                String headerText = read > 0
+                        ? new String(header, 0, read, java.nio.charset.StandardCharsets.US_ASCII)
+                        : "";
+                if (read >= 11 && headerText.startsWith("-----BEGIN ")) {
+                    throw new BallerinaFtpException("Failed to load KeyStore from path: " + path
+                            + ". File looks like a PEM (starts with '-----BEGIN '); "
+                            + "expected a " + type + " keystore.");
+                }
             }
 
             KeyStore keyStore = KeyStore.getInstance(type);
             char[] passChars = (password != null) ? password.toCharArray() : null;
-            
             try (FileInputStream fis = new FileInputStream(new File(path))) {
                 keyStore.load(fis, passChars);
             }
             return keyStore;
+        } catch (BallerinaFtpException e) {
+            throw e;
         } catch (Exception e) {
-            throw new BallerinaFtpException("Failed to load KeyStore from path: " + path + ". " + e.getMessage(), e);
+            String detail = e.getMessage();
+            if (detail == null || detail.isBlank()) {
+                detail = e.getClass().getSimpleName() + " (file may be corrupted or not a valid keystore)";
+            }
+            throw new BallerinaFtpException("Failed to load KeyStore from path: " + path + ". " + detail, e);
         }
     }
 

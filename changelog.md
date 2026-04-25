@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Reject empty-string `path` in `privateKey` / `secureSocket.key` / `secureSocket.cert` at client init, matching the listener-side behaviour](https://github.com/ballerina-platform/ballerina-library/issues/8762)
 - [Disambiguate SFTP key-load failures (wrong/missing passphrase, malformed key) from generic connect failures](https://github.com/ballerina-platform/ballerina-library/issues/8763)
 - [Wrap cryptic JVM keystore errors: detect PEM-as-keystore and guard against the literal "null" that appeared when the underlying exception had no message](https://github.com/wso2/product-integrator/issues/831)
+- [Clarify the FTP listener "path is not a folder" error: name the FTP listener (instead of the unrelated "File system server connector") and include the configured remote path](https://github.com/wso2/product-integrator/issues/1139)
 
 ### Changed
 

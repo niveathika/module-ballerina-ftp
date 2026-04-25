@@ -92,8 +92,9 @@ public class RemoteFileSystemConsumer {
             listeningDir = fileSystemManager.resolveFile(listeningDirURI, fileSystemOptions);
             FileType fileType = listeningDir.getType();
             if (fileType != FileType.FOLDER) {
-                String errorMsg = "File system server connector is used to "
-                        + "listen to a folder. But the given path does not refer to a folder.";
+                String errorMsg = "FTP listener path \""
+                        + FileTransportUtils.maskUrlPassword(listeningDirURI)
+                        + "\" does not refer to a folder on the remote file system.";
                 final RemoteFileSystemConnectorException e = new RemoteFileSystemConnectorException(errorMsg);
                 remoteFileSystemListener.onError(e);
                 throw e;

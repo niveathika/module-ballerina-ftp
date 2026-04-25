@@ -94,6 +94,10 @@ public class FtpConstants {
     public static final String KEYSTORE_PATH_KEY = "path";
     public static final String KEYSTORE_PASSWORD_KEY = "password";
 
+    // PEM truststore loading
+    public static final String X509_CERTIFICATE_TYPE = "X.509";
+    public static final String PEM_CERT_ALIAS_PREFIX = "ftp-pem-";
+
     public static final String ENDPOINT_CONFIG_PREFERRED_METHODS = "preferredMethods";
     public static final String ENDPOINT_CONFIG_LAX_DATABINDING = "laxDataBinding";
     

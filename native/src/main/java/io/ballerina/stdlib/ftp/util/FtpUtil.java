@@ -313,8 +313,10 @@ public class FtpUtil {
         if (rawValue instanceof BMap<?, ?> rawMap) {
             @SuppressWarnings("unchecked")
             BMap<BString, Object> storeRecord = (BMap<BString, Object>) rawMap;
-            String path = storeRecord.getStringValue(StringUtils.fromString("path")).getValue();
-            String password = storeRecord.getStringValue(StringUtils.fromString("password")).getValue();
+            String path = storeRecord.getStringValue(
+                    StringUtils.fromString(FtpConstants.KEYSTORE_PATH_KEY)).getValue();
+            String password = storeRecord.getStringValue(
+                    StringUtils.fromString(FtpConstants.KEYSTORE_PASSWORD_KEY)).getValue();
             config.put(pathConfigKey, path);
             config.put(passwordConfigKey, password);
             return path;
@@ -354,7 +356,7 @@ public class FtpUtil {
         }
         try {
             java.security.cert.CertificateFactory cf =
-                    java.security.cert.CertificateFactory.getInstance("X.509");
+                    java.security.cert.CertificateFactory.getInstance(FtpConstants.X509_CERTIFICATE_TYPE);
             KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
             ks.load(null, null);
             int index = 0;
@@ -365,7 +367,7 @@ public class FtpUtil {
                     throw new BallerinaFtpException("PEM file contains no certificates: " + pemPath);
                 }
                 for (java.security.cert.Certificate cert : certs) {
-                    ks.setCertificateEntry("ftp-pem-" + index++, cert);
+                    ks.setCertificateEntry(FtpConstants.PEM_CERT_ALIAS_PREFIX + index++, cert);
                 }
             }
             return ks;

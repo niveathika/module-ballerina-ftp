@@ -18,6 +18,7 @@
 
 package io.ballerina.stdlib.ftp.transport.server.util;
 
+import io.ballerina.stdlib.ftp.exception.BallerinaFtpException;
 import io.ballerina.stdlib.ftp.exception.RemoteFileSystemConnectorException;
 import io.ballerina.stdlib.ftp.transport.ftps.HostnameVerifyingFtpsConfigHelper;
 import io.ballerina.stdlib.ftp.util.ExcludeCoverageFromGeneratedReport;
@@ -31,6 +32,7 @@ import org.apache.commons.vfs2.provider.ftps.FtpsDataChannelProtectionLevel;
 import org.apache.commons.vfs2.provider.ftps.FtpsFileSystemConfigBuilder;
 import org.apache.commons.vfs2.provider.ftps.FtpsMode;
 import org.apache.commons.vfs2.provider.sftp.IdentityInfo;
+import org.apache.commons.vfs2.provider.sftp.IdentityProvider;
 import org.apache.commons.vfs2.provider.sftp.SftpFileSystemConfigBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -321,15 +323,34 @@ public final class FileTransportUtils {
         configBuilder.setUserDirIsRoot(opts, userDirIsRoot);
         Object identityObj = options.get(FtpConstants.IDENTITY);
         if (identityObj != null) {
+            String identityPath = identityObj.toString();
+            try {
+                FtpUtil.validateRegularFile("SFTP private key", identityPath);
+            } catch (BallerinaFtpException e) {
+                // Surface the original (always non-null) validation message. Guard against
+                // null just in case a future subclass omits one — callers should never see
+                // the literal "null".
+                String msg = e.getMessage();
+                if (msg == null || msg.isBlank()) {
+                    msg = "SFTP private key file is not usable: " + identityPath;
+                }
+                throw new RemoteFileSystemConnectorException(msg, e);
+            }
             IdentityInfo identityInfo;
             Object passPhraseObj = options.get(IDENTITY_PASS_PHRASE);
             if (passPhraseObj != null) {
-                identityInfo = new IdentityInfo(new File(identityObj.toString()),
-                        passPhraseObj.toString().getBytes());
+                identityInfo = new IdentityInfo(new File(identityPath),
+                        passPhraseObj.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
             } else {
-                identityInfo = new IdentityInfo(new File(identityObj.toString()));
+                identityInfo = new IdentityInfo(new File(identityPath));
             }
             configBuilder.setIdentityInfo(opts, identityInfo);
+        } else {
+            // No privateKey configured. Suppress JSch's auto-discovery of ~/.ssh/id_rsa
+            // so an unreadable / wrong-format default key on the host doesn't poison
+            // password-only auth flows (see ballerina-library#6769, #8760, and
+            // wso2/product-integrator#1132).
+            configBuilder.setIdentityProvider(opts, new IdentityProvider[0]);
         }
         // Prevent JSch from probing server capabilities via exec channel (e.g. "id -u").
         // Servers that expose only SFTP/SCP subsystems reject exec commands, which can stall shutdown.

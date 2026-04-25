@@ -60,19 +60,15 @@ public type PrivateKey record {|
 # Secure socket configuration for FTPS (FTP over SSL/TLS).
 # Used for configuring SSL/TLS certificates and keystores for FTPS connections.
 public type SecureSocket record {|
-    # Keystore configuration for client authentication
+    # Client keystore for mutual TLS
     crypto:KeyStore key?;
-    # Certificate configuration for server certificate validation. Accepts either
-    # a file path string pointing at a PEM certificate (in which case the cert is
-    # loaded into an in-memory truststore) or a `crypto:TrustStore` record for
-    # JKS/PKCS12 truststores.
+    # Server certificate to trust. PEM file path or `crypto:TrustStore` for JKS/PKCS12
     string|crypto:TrustStore cert?;
-    # FTPS connection mode.
+    # When TLS is negotiated. Valid values: `IMPLICIT`, `EXPLICIT`
     FtpsMode mode = EXPLICIT;
-    # Data channel protection level. Controls encryption of the data channel used for file transfers.
+    # Data channel encryption. Valid values: `CLEAR`, `PRIVATE`, `SAFE`, `CONFIDENTIAL`
     FtpsDataChannelProtection dataChannelProtection = PRIVATE;
-    # Verify that the server certificate's CN/SAN matches the host being connected to. Defaults to `true`.
-    # Set to `false` only for development or testing with self-signed certificates whose identity does not match the host.
+    # Verify the server certificate's hostname. Disable only for testing with self-signed certs
     boolean verifyHostName = true;
 |};
 

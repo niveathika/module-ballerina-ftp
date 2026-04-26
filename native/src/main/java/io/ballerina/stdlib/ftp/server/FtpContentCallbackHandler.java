@@ -308,16 +308,14 @@ public class FtpContentCallbackHandler {
 
     private void routeToOnError(BObject service, FormatMethodsHolder holder, BError error, BObject callerObject,
                                 FileInfo fileInfo, String listenerPath, String contentMethodName) {
-        // Binding failed before the content handler ran — the content method's afterError is the
-        // user's declared "corrupted file" destination. It is the fallback for any post-process
-        // slot the onError method's @FunctionConfig does not declare.
-        Optional<PostProcessAction> contentAfterError = holder.getAfterErrorAction(contentMethodName);
-
         Optional<MethodType> onErrorMethodOpt = holder.getOnErrorMethod();
         if (onErrorMethodOpt.isEmpty()) {
+            // No onError handler — fall back to the content method's afterError so the
+            // corrupted source file does not get re-picked on every poll.
             error.printStackTrace();
-            contentAfterError.ifPresent(action -> Thread.startVirtualThread(() ->
-                    executePostProcessAction(action, fileInfo, callerObject, listenerPath, ACTION_AFTER_ERROR)));
+            holder.getAfterErrorAction(contentMethodName).ifPresent(action ->
+                    Thread.startVirtualThread(() -> executePostProcessAction(action, fileInfo,
+                            callerObject, listenerPath, ACTION_AFTER_ERROR)));
             return;
         }
 
@@ -325,18 +323,13 @@ public class FtpContentCallbackHandler {
 
         Optional<PostProcessAction> onErrorAfterProcess = holder.getAfterProcessAction(onErrorMethod.getName());
         Optional<PostProcessAction> onErrorAfterError = holder.getAfterErrorAction(onErrorMethod.getName());
-
-        // Per slot: honour what onError declares; fall back to the content method's afterError
-        // for any slot onError left empty. The source file already failed binding, so an empty
-        // slot must not mean "do nothing" — it means "use the content method's afterError".
-        Optional<PostProcessAction> effectiveAfterProcess =
-                onErrorAfterProcess.isPresent() ? onErrorAfterProcess : contentAfterError;
-        Optional<PostProcessAction> effectiveAfterError =
-                onErrorAfterError.isPresent() ? onErrorAfterError : contentAfterError;
+        boolean hasOnErrorActions = onErrorAfterProcess.isPresent() || onErrorAfterError.isPresent();
 
         Object[] methodArguments = prepareOnErrorMethodArguments(onErrorMethod, error, callerObject);
         invokeOnErrorMethodAsync(service, onErrorMethod.getName(), methodArguments, fileInfo, callerObject,
-                listenerPath, effectiveAfterProcess, effectiveAfterError);
+                listenerPath,
+                hasOnErrorActions ? onErrorAfterProcess : Optional.empty(),
+                hasOnErrorActions ? onErrorAfterError : Optional.empty());
     }
 
     private Object[] prepareOnErrorMethodArguments(MethodType methodType, BError error, BObject callerObject) {

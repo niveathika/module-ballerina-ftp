@@ -12,7 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 
-- [Apply the content method's `afterError` action when content binding fails before the handler is invoked](https://github.com/wso2/product-integrator/issues/1161)
+- [Apply the content method's `afterError` action when content binding fails before the handler is invoked and no `onError` method is declared](https://github.com/wso2/product-integrator/issues/1161)
 - [Validate `fileAgeFilter` values at listener startup; reject negative `minAge`/`maxAge` and `minAge` greater than `maxAge`](https://github.com/wso2/product-integrator/issues/1151)
 - [Enforce hostname verification and JDK cacerts trust chain for FTPS connections by default](https://github.com/wso2/product-integrator/issues/829)
 - [Improve error messages for SFTP private-key load failures — surface the configured path and a useful hint instead of the Java object identity](https://github.com/ballerina-platform/ballerina-library/issues/8760)

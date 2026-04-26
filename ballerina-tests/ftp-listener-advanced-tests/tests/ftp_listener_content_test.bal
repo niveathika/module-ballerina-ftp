@@ -785,6 +785,8 @@ const string CORRUPT_CSV_PAYLOAD = "name,sex,gender\n" +
 isolated boolean corruptCsvHandlerInvoked = false;
 isolated boolean corruptCsvHandlerC = false;
 isolated boolean corruptCsvOnErrorC = false;
+isolated boolean corruptCsvHandlerD = false;
+isolated boolean corruptCsvOnErrorD = false;
 
 function waitUntilFileAt(string path) returns boolean {
     return waitUntil(function() returns boolean {
@@ -902,4 +904,73 @@ function testFunctionConfig_CorruptCsv_OnErrorWithOwnActions() returns error? {
         "Content method's afterError must be suppressed when onError declares the afterProcess slot");
 
     check contentFtpClient->delete(movedPath);
+}
+
+// onError declared without its own @ftp:FunctionConfig actions → onError fires for notification,
+// but no post-process action runs and the corrupted file stays in the source directory.
+// Negative regression: prevents reintroduction of the per-slot fallback to the content method's
+// afterError when onError is declared.
+@test:Config {
+    groups: ["ftp-listener-advanced", "function-config"],
+    dependsOn: [testFunctionConfig_CorruptCsv_OnErrorWithOwnActions]
+}
+function testFunctionConfig_CorruptCsv_OnErrorWithoutActions_FileStaysInSource() returns error? {
+    lock { corruptCsvHandlerD = false; }
+    lock { corruptCsvOnErrorD = false; }
+
+    ftp:Service svc = service object {
+        @ftp:FunctionConfig {
+            afterProcess: {moveTo: CORRUPT_CSV_PROCESSED_DIR},
+            afterError: {moveTo: CORRUPT_CSV_ERROR_DIR}
+        }
+        remote function onFileCsv(CorruptCsvContent[] contents, ftp:FileInfo fileInfo) returns error? {
+            lock { corruptCsvHandlerD = true; }
+        }
+
+        // No @ftp:FunctionConfig — onError declared without its own afterProcess/afterError.
+        remote function onError(ftp:Error err) returns error? {
+            lock { corruptCsvOnErrorD = true; }
+        }
+    };
+
+    ftp:Listener l = check new (contentListenerConfig(CORRUPT_CSV_DIR, "cbe-onerr-noact.*\\.csv", 2));
+    check l.attach(svc);
+    check l.'start();
+    runtime:registerListener(l);
+
+    string remotePath = CORRUPT_CSV_DIR + "/cbe-onerr-noact.csv";
+    check contentFtpClient->putText(remotePath, CORRUPT_CSV_PAYLOAD);
+
+    boolean onErrorCalled = waitUntil(function() returns boolean {
+        boolean called;
+        lock { called = corruptCsvOnErrorD; }
+        return called;
+    }, 30);
+
+    // After onError signals, give any spurious post-process action time to complete before
+    // asserting nothing moved. Two polling intervals is enough to detect a fallback.
+    runtime:sleep(5);
+
+    runtime:deregisterListener(l);
+    check l.gracefulStop();
+
+    boolean handlerCalled;
+    lock { handlerCalled = corruptCsvHandlerD; }
+    test:assertFalse(handlerCalled,
+        "onFileCsv must not be invoked when binding fails");
+    test:assertTrue(onErrorCalled, "onError should be invoked for a ContentBindingError");
+
+    boolean inSource = check contentFtpClient->exists(remotePath);
+    test:assertTrue(inSource,
+        "When onError is declared without @FunctionConfig actions, the file must stay in " +
+        "the source directory — no per-slot fallback to the content method's afterError");
+
+    boolean inErrorDir = check contentFtpClient->exists(CORRUPT_CSV_ERROR_DIR + "/cbe-onerr-noact.csv");
+    test:assertFalse(inErrorDir,
+        "Content method's afterError must not fire when onError is declared without actions");
+
+    boolean inProcessedDir = check contentFtpClient->exists(CORRUPT_CSV_PROCESSED_DIR + "/cbe-onerr-noact.csv");
+    test:assertFalse(inProcessedDir, "afterProcess must not fire on binding failure");
+
+    check contentFtpClient->delete(remotePath);
 }

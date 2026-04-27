@@ -39,12 +39,8 @@ public type FtpFunctionConfig record {|
     # If not specified, no action is taken (file remains in place)
     MOVE|DELETE afterProcess?;
     # Action to perform after a processing error. Can be `DELETE` or `MOVE`.
-    # Executed immediately after the content handler returns an error or panics,
-    # or when content binding fails before the handler is invoked (e.g. malformed
-    # CSV/JSON/XML for the target type). On binding failures, any slot an
-    # `onError` method declares (`afterProcess` or `afterError` on its own
-    # `FunctionConfig`) takes precedence; slots it leaves empty fall back to
-    # this action.
+    # Also applied when content binding fails (e.g. malformed CSV/JSON/XML) and
+    # no `onError` method is declared.
     # If not specified, no action is taken (file remains in place)
     MOVE|DELETE afterError?;
 |};

@@ -38,6 +38,7 @@ import io.ballerina.stdlib.ftp.client.circuitbreaker.CircuitBreakerConfig;
 import io.ballerina.stdlib.ftp.exception.BallerinaFtpException;
 import io.ballerina.stdlib.ftp.exception.FtpInvalidConfigException;
 import io.ballerina.stdlib.ftp.exception.RemoteFileSystemConnectorException;
+import io.ballerina.stdlib.ftp.observability.FtpObservabilityUtil;
 import io.ballerina.stdlib.ftp.transport.RemoteFileSystemConnectorFactory;
 import io.ballerina.stdlib.ftp.transport.client.connector.contract.FtpAction;
 import io.ballerina.stdlib.ftp.transport.client.connector.contract.VfsClientConnector;
@@ -365,6 +366,10 @@ public class FtpClient {
                 return circuitBreakerError;
             }
 
+            // Observability: track active client connections.
+            String protocol = (String) ftpConfig.get(FtpConstants.ENDPOINT_CONFIG_PROTOCOL);
+            FtpObservabilityUtil.recordConnectionOpen(url, protocol, FtpObservabilityUtil.CONTEXT_CLIENT);
+
             return null;
         } catch (RemoteFileSystemConnectorException e) {
             String errorType = FtpUtil.getErrorTypeForException(e);
@@ -449,7 +454,10 @@ public class FtpClient {
     }
 
     public static Object getBytes(Environment env, BObject clientConnector, BString filePath) {
-        return FtpRetryHelper.executeWithRetry(
+        String[] coords = endpointCoords(clientConnector);
+        FtpObservabilityUtil.enrichClientSpan(env, coords[0], coords[1],
+                FtpObservabilityUtil.OP_GET, filePath.getValue());
+        Object result = FtpRetryHelper.executeWithRetry(
                 clientConnector,
                 () -> {
                     Object content = getAllContent(env, clientConnector, filePath);
@@ -461,6 +469,10 @@ public class FtpClient {
                 FtpConstants.OP_GET_BYTES,
                 filePath.getValue()
         );
+        if (result instanceof BError) {
+            FtpObservabilityUtil.markError(env, classifyError((BError) result));
+        }
+        return result;
     }
 
     public static Object getText(Environment env, BObject clientConnector, BString filePath) {
@@ -637,7 +649,27 @@ public class FtpClient {
             }
         }
         clientConnector.addNativeData(VFS_CLIENT_CONNECTOR, null);
+        // Observability: balance the recordConnectionOpen() call in createAndStoreConnector.
+        String[] coords = endpointCoords(clientConnector);
+        FtpObservabilityUtil.recordConnectionClose(coords[0], coords[1], FtpObservabilityUtil.CONTEXT_CLIENT);
         return null;
+    }
+
+    /**
+     * Returns {@code {url, protocol}} for the given client connector. Both elements
+     * may be {@code null} if the connector was not fully initialized. Used by the
+     * tag-enrichment hooks in this file — keep cheap.
+     */
+    @SuppressWarnings("unchecked")
+    private static String[] endpointCoords(BObject clientConnector) {
+        Map<String, Object> ftpConfig = (Map<String, Object>) clientConnector.getNativeData(FtpConstants.PROPERTY_MAP);
+        if (ftpConfig == null) {
+            return new String[] {null, null};
+        }
+        return new String[] {
+                (String) ftpConfig.get(FtpConstants.URI),
+                (String) ftpConfig.get(FtpConstants.ENDPOINT_CONFIG_PROTOCOL)
+        };
     }
 
     /**
@@ -735,9 +767,16 @@ public class FtpClient {
 
     public static Object putBytes(Environment env, BObject clientConnector, BString path, BArray inputContent,
                                   BString options) {
+        String[] coords = endpointCoords(clientConnector);
+        FtpObservabilityUtil.enrichClientSpan(env, coords[0], coords[1],
+                FtpObservabilityUtil.OP_PUT, path.getValue());
         InputStream stream = new ByteArrayInputStream(inputContent.getBytes());
         RemoteFileSystemMessage message = new RemoteFileSystemMessage(stream);
-        return putGenericAction(env, clientConnector, path, options, message);
+        Object result = putGenericAction(env, clientConnector, path, options, message);
+        if (result instanceof BError) {
+            FtpObservabilityUtil.markError(env, classifyError((BError) result));
+        }
+        return result;
     }
 
     public static Object putText(Environment env, BObject clientConnector, BString path, BString inputContent,
@@ -935,11 +974,48 @@ public class FtpClient {
     }
 
     public static Object delete(Environment env, BObject clientConnector, BString filePath) {
-        return executeSinglePathAction(env, clientConnector, filePath, FtpAction.DELETE, true,
+        String[] coords = endpointCoords(clientConnector);
+        FtpObservabilityUtil.enrichClientSpan(env, coords[0], coords[1],
+                FtpObservabilityUtil.OP_DELETE, filePath.getValue());
+        Object result = executeSinglePathAction(env, clientConnector, filePath, FtpAction.DELETE, true,
                 balFuture -> remoteFileSystemBaseMessage -> {
                     FtpClientHelper.executeGenericAction();
                     return true;
                 });
+        if (result instanceof BError) {
+            FtpObservabilityUtil.markError(env, classifyError((BError) result));
+        }
+        return result;
+    }
+
+    // SKETCH NOTE: Apply the same enrichClientSpan + markError pattern to:
+    //   getText, getJson, getXml, getCsv, getBytesAsStream, getCsvAsStream,
+    //   putText, putJson, putXml, putCsv, putBytesAsStream, putCsvAsStream,
+    //   append, rename (use the 2-path enrichClientSpan overload),
+    //   isDirectory, list, mkdir, rmdir, size, getMetadata.
+    // Operation-type constants for each are already declared in FtpObservabilityUtil.
+
+    /**
+     * SKETCH NOTE: This stub classifier should be replaced by the same
+     * BError-type → category mapping that {@code FtpUtil.getErrorTypeForException}
+     * already does for connector exceptions. Kept simple here to keep the diff
+     * focused on the tagging pattern.
+     */
+    private static String classifyError(BError error) {
+        String typeName = error.getType().getName();
+        if (typeName == null) {
+            return FtpObservabilityUtil.ERR_OTHER;
+        }
+        return switch (typeName) {
+            case "ConnectionError" -> FtpObservabilityUtil.ERR_CONNECTION;
+            case "AuthenticationError", "AuthError" -> FtpObservabilityUtil.ERR_AUTHENTICATION;
+            case "FileNotFoundError" -> FtpObservabilityUtil.ERR_FILE_NOT_FOUND;
+            case "FileAlreadyExistsError" -> FtpObservabilityUtil.ERR_FILE_ALREADY_EXISTS;
+            case "ServiceUnavailableError", "CircuitBreakerOpenError" ->
+                    FtpObservabilityUtil.ERR_SERVICE_UNAVAILABLE;
+            case "InvalidConfigError" -> FtpObservabilityUtil.ERR_INVALID_CONFIG;
+            default -> FtpObservabilityUtil.ERR_OTHER;
+        };
     }
 
     public static Object isDirectory(Environment env, BObject clientConnector, BString filePath) {

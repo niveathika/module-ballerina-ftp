@@ -22,6 +22,8 @@ import io.ballerina.runtime.api.Environment;
 import io.ballerina.runtime.api.Module;
 import io.ballerina.runtime.api.Runtime;
 import io.ballerina.runtime.api.concurrent.StrandMetadata;
+import io.ballerina.runtime.observability.ObservabilityConstants;
+import io.ballerina.runtime.observability.ObserverContext;
 import io.ballerina.runtime.api.creators.TypeCreator;
 import io.ballerina.runtime.api.creators.ValueCreator;
 import io.ballerina.runtime.api.types.IntersectionType;
@@ -39,6 +41,7 @@ import io.ballerina.runtime.api.values.BObject;
 import io.ballerina.runtime.api.values.BString;
 import io.ballerina.stdlib.ftp.exception.FtpInvalidConfigException;
 import io.ballerina.stdlib.ftp.exception.RemoteFileSystemConnectorException;
+import io.ballerina.stdlib.ftp.observability.FtpObservabilityUtil;
 import io.ballerina.stdlib.ftp.transport.listener.RemoteFileSystemListener;
 import io.ballerina.stdlib.ftp.transport.message.FileInfo;
 import io.ballerina.stdlib.ftp.transport.message.RemoteFileSystemBaseMessage;
@@ -374,7 +377,8 @@ public class FtpListener implements RemoteFileSystemListener {
                 ObjectType serviceType = (ObjectType) TypeUtils.getReferredType(TypeUtils.getType(service));
                 boolean isConcurrentSafe = serviceType.isIsolated() &&
                         serviceType.isIsolated(ON_FILE_CHANGE_REMOTE_FUNCTION);
-                StrandMetadata strandMetadata = new StrandMetadata(isConcurrentSafe, null);
+                StrandMetadata strandMetadata = new StrandMetadata(isConcurrentSafe,
+                        observabilityProperties(service, FtpObservabilityUtil.EVENT_CHANGE));
                 Object result = runtime.callMethod(service, ON_FILE_CHANGE_REMOTE_FUNCTION, strandMetadata, args);
                 if (result instanceof BError) {
                     ((BError) result).printStackTrace();
@@ -385,6 +389,35 @@ public class FtpListener implements RemoteFileSystemListener {
         });
 
     }
+
+    /**
+     * Builds a strand-properties map containing a pre-tagged FTP {@link ObserverContext}
+     * so the runtime, when it starts the dispatch strand, picks up the right tags
+     * for the metric/span that wraps the {@code on*} handler.
+     *
+     * <p>Returns {@code null} when observability is disabled — the existing
+     * {@code new StrandMetadata(isConcurrentSafe, null)} behaviour.
+     *
+     * <p>SKETCH NOTE: This currently only knows the protocol/url is "unknown".
+     * Plumb the listener's URL + protocol through {@link ServiceContext} (set during
+     * {@code FtpListenerHelper.register}) and read them here for the
+     * {@code peer_address} / {@code protocol} tags.
+     */
+    private Map<String, Object> observabilityProperties(BObject service, String eventType) {
+        ObserverContext ctx = FtpObservabilityUtil.newListenerObserverContext(
+                /* url */ null, /* protocol */ null, eventType, /* filePath */ null);
+        if (ctx == null) {
+            return null;
+        }
+        Map<String, Object> props = new HashMap<>();
+        props.put(ObservabilityConstants.KEY_OBSERVER_CONTEXT, ctx);
+        return props;
+    }
+
+    // SKETCH NOTE: invokeOnFileDeleteAsync, invokeOnFileDeletedAsync, and the
+    // content-method dispatch sites in FtpListenerHelper should all use
+    // observabilityProperties(...) (with EVENT_DELETE / EVENT_CHANGE / EVENT_ERROR)
+    // when constructing their StrandMetadata.
 
     private BMap<BString, Object> getWatchEvent(Parameter parameter, Map<String, Object> parameters) {
         List<Map<String, Object>> addedFileParamList = (List<Map<String, Object>>)
